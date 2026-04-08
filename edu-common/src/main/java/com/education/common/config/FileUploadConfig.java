@@ -15,7 +15,7 @@ public class FileUploadConfig {
     /**
      * 上传路径
      */
-    private String path = "uploads/";
+    private String path = "doc/uploads/";
     
     /**
      * 访问URL前缀

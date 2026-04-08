@@ -20,7 +20,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
         // 上传文件访问路径映射
-        String uploadPath = System.getProperty("user.dir") + File.separator + "uploads" + File.separator;
+        String uploadPath = System.getProperty("user.dir") + File.separator + "doc" + File.separator + "uploads" + File.separator;
         Path path = Paths.get(uploadPath);
         String absolutePath = path.toFile().getAbsolutePath();
         
