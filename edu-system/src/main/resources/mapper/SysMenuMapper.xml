@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.education.system.mapper.SysMenuMapper">
+
+    <resultMap id="BaseResultMap" type="com.education.system.entity.SysMenu">
+        <id column="id" property="id"/>
+        <result column="parent_id" property="parentId"/>
+        <result column="name" property="menuName"/>
+        <result column="menu_type" property="menuType"/>
+        <result column="icon" property="icon"/>
+        <result column="path" property="path"/>
+        <result column="component" property="component"/>
+        <result column="permission" property="permission"/>
+        <result column="sort" property="sortOrder"/>
+        <result column="status" property="status"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id, parent_id, name, menu_type, icon, path, component, permission, sort, status, create_time, update_time
+    </sql>
+
+    <select id="selectMenusByUserId" resultMap="BaseResultMap">
+        SELECT DISTINCT m.*
+        FROM sys_menu m
+        LEFT JOIN sys_role_menu rm ON m.id = rm.menu_id
+        LEFT JOIN sys_user_role ur ON rm.role_id = ur.role_id
+        WHERE m.status = 1
+          AND ur.user_id = #{userId}
+        ORDER BY m.sort ASC
+    </select>
+
+</mapper>
