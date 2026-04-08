@@ -1,0 +1,1 @@
+import{G as n,H as t}from"./index-CfirYGfg.js";function i(){const o=n(),r=t("confirm");return{toast:{success:(s,e)=>o.success(s,e),error:(s,e)=>o.error(s,e),warning:(s,e)=>o.warning(s,e),info:(s,e)=>o.info(s,e)},confirm:r}}export{i as u};
