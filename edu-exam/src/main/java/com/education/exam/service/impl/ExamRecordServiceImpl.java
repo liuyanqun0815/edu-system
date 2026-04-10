@@ -3,18 +3,20 @@ package com.education.exam.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.education.common.exception.BusinessException;
+import com.education.exam.dto.AntiCheatVO;
 import com.education.exam.dto.ExamRecordDetailVO;
+import com.education.exam.entity.ExamQuestion;
 import com.education.exam.entity.ExamRecord;
 import com.education.exam.entity.ExamRecordDetail;
-import com.education.exam.entity.Question;
-import com.education.exam.entity.QuestionOption;
+import com.education.exam.mapper.ExamQuestionMapper;
 import com.education.exam.mapper.ExamRecordDetailMapper;
 import com.education.exam.mapper.ExamRecordMapper;
-import com.education.exam.mapper.QuestionMapper;
-import com.education.exam.mapper.QuestionOptionMapper;
 import com.education.exam.service.IExamRecordService;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -23,17 +25,16 @@ import java.util.stream.Collectors;
 /**
  * 考试记录Service实现
  */
+@Slf4j
 @Service
+@RequiredArgsConstructor
 public class ExamRecordServiceImpl extends ServiceImpl<ExamRecordMapper, ExamRecord> implements IExamRecordService {
 
     @Autowired
     private ExamRecordDetailMapper recordDetailMapper;
     
     @Autowired
-    private QuestionMapper questionMapper;
-    
-    @Autowired
-    private QuestionOptionMapper optionMapper;
+    private ExamQuestionMapper examQuestionMapper;
 
     @Override
     public ExamRecordDetailVO getRecordDetail(Long recordId) {
@@ -45,6 +46,11 @@ public class ExamRecordServiceImpl extends ServiceImpl<ExamRecordMapper, ExamRec
 
         ExamRecordDetailVO vo = new ExamRecordDetailVO();
         vo.setRecord(record);
+        
+        // 防作弊信息
+        vo.setBrowserInfo(record.getBrowserInfo());
+        vo.setScreenSwitchCount(record.getScreenSwitchCount());
+        vo.setWarningCount(record.getWarningCount());
 
         // 获取答题详情
         LambdaQueryWrapper<ExamRecordDetail> wrapper = new LambdaQueryWrapper<>();
@@ -57,16 +63,10 @@ public class ExamRecordServiceImpl extends ServiceImpl<ExamRecordMapper, ExamRec
             item.setDetail(detail);
             
             // 获取题目信息
-            Question question = questionMapper.selectById(detail.getQuestionId());
+            ExamQuestion question = examQuestionMapper.selectById(detail.getQuestionId());
             if (question != null) {
                 item.setQuestion(question);
-                
-                // 获取选项
-                LambdaQueryWrapper<QuestionOption> optionWrapper = new LambdaQueryWrapper<>();
-                optionWrapper.eq(QuestionOption::getQuestionId, question.getId())
-                        .orderByAsc(QuestionOption::getSort);
-                List<QuestionOption> options = optionMapper.selectList(optionWrapper);
-                item.setOptions(options);
+                item.setOptionsJson(question.getOptions());
             }
             
             questionDetails.add(item);
@@ -77,6 +77,57 @@ public class ExamRecordServiceImpl extends ServiceImpl<ExamRecordMapper, ExamRec
         vo.setCorrectCount(details.stream().filter(d -> d.getIsCorrect() == 1).count());
         vo.setWrongCount(details.stream().filter(d -> d.getIsCorrect() == 0).count());
 
+        return vo;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void recordScreenSwitch(Long recordId) {
+        ExamRecord record = getById(recordId);
+        if (record == null) {
+            throw new BusinessException("考试记录不存在");
+        }
+        
+        Integer count = record.getScreenSwitchCount() == null ? 0 : record.getScreenSwitchCount();
+        record.setScreenSwitchCount(count + 1);
+        
+        // 超过阈值自动警告
+        if (count >= 3) {
+            Integer warningCount = record.getWarningCount() == null ? 0 : record.getWarningCount();
+            record.setWarningCount(warningCount + 1);
+            log.warn("考试记录[{}]切屏次数: {}, 触发警告", recordId, count + 1);
+        }
+        
+        updateById(record);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void recordWarning(Long recordId) {
+        ExamRecord record = getById(recordId);
+        if (record == null) {
+            throw new BusinessException("考试记录不存在");
+        }
+        
+        Integer count = record.getWarningCount() == null ? 0 : record.getWarningCount();
+        record.setWarningCount(count + 1);
+        
+        updateById(record);
+        log.warn("考试记录[{}]警告次数: {}", recordId, count + 1);
+    }
+
+    @Override
+    public AntiCheatVO getAntiCheatInfo(Long recordId) {
+        ExamRecord record = getById(recordId);
+        if (record == null) {
+            throw new BusinessException("考试记录不存在");
+        }
+        
+        AntiCheatVO vo = new AntiCheatVO();
+        vo.setBrowserInfo(record.getBrowserInfo());
+        vo.setScreenSwitchCount(record.getScreenSwitchCount());
+        vo.setWarningCount(record.getWarningCount());
+        
         return vo;
     }
 }

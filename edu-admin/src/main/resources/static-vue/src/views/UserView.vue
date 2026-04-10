@@ -169,9 +169,34 @@
               <select v-model="form.parentId">
                 <option :value="null">无（顶级用户）</option>
                 <option v-for="u in selectableUsers" :key="u.id" :value="u.id">
-                  {{ u.nickname || u.username }} <span class="role-level-tag">({{ roleLevelMap[u.roleLevel] || '未知' }})</span>
+                  {{ u.nickname || u.username }} ({{ roleLevelMap[u.roleLevel] || '未知' }})
                 </option>
               </select>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>身份证号</label>
+                <input v-model="form.idCard" type="text" placeholder="请输入身份证号">
+              </div>
+              <div class="form-group">
+                <label>出生日期</label>
+                <input v-model="form.birthday" type="date" placeholder="请选择出生日期">
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>入学/入职日期</label>
+                <input v-model="form.joinDate" type="date" placeholder="请选择入学/入职日期">
+              </div>
+              <div class="form-group">
+                <label>年级</label>
+                <select v-model="form.gradeId">
+                  <option :value="null">请选择年级</option>
+                  <option v-for="grade in gradeList" :key="grade.id" :value="grade.id">
+                    {{ grade.itemName || grade.itemLabel || grade.name }}
+                  </option>
+                </select>
+              </div>
             </div>
             <div class="form-group">
               <label>常用地址</label>
@@ -522,6 +547,19 @@ const showParentModal = ref(false)
 const userParents = ref([])
 const parentForm = ref({ name: '', relation: '父亲', phone: '', wechat: '', email: '', remark: '' })
 
+// 年级列表
+const gradeList = ref([])
+
+// 加载年级列表
+async function loadGradeList() {
+  try {
+    const res = await request.get('/system/config/items', { params: { category: 'grade' } })
+    if (res.data.code === 200) {
+      gradeList.value = res.data.data || []
+    }
+  } catch (e) { /* ignore */ }
+}
+
 async function handleManageParent(user) {
   currentUser.value = user
   userParents.value = []
@@ -585,7 +623,11 @@ const form = reactive({
   password: '',
   confirmPassword: '',
   avatar: '',
-  parentId: null
+  parentId: null,
+  idCard: '',
+  birthday: '',
+  joinDate: '',
+  gradeId: null
 })
 
 const pwdForm = reactive({
@@ -708,7 +750,11 @@ function handleEdit(user) {
     sex: user.sex || 0,
     status: user.status,
     avatar: user.avatar || '',
-    parentId: user.parentId || null
+    parentId: user.parentId || null,
+    idCard: user.idCard || '',
+    birthday: user.birthday || '',
+    joinDate: user.joinDate || '',
+    gradeId: user.gradeId || null
   })
   showModal.value = true
 }
@@ -725,7 +771,8 @@ function resetForm() {
     id: null, username: '', nickname: '',
     email: '', phone: '', address: '', sex: 0,
     status: 1, password: '', confirmPassword: '',
-    avatar: '', parentId: null
+    avatar: '', parentId: null,
+    idCard: '', birthday: '', joinDate: '', gradeId: null
   })
 }
 
@@ -767,7 +814,11 @@ async function handleSubmit() {
       sex: form.sex,
       status: form.status,
       avatar: form.avatar,
-      parentId: form.parentId || null
+      parentId: form.parentId || null,
+      idCard: form.idCard || null,
+      birthday: form.birthday || null,
+      joinDate: form.joinDate || null,
+      gradeId: form.gradeId || null
     }
 
     if (isEdit.value) {
@@ -1062,6 +1113,7 @@ onMounted(() => {
   fetchUserList()
   loadAllUsersMap()
   loadSelectableParents()
+  loadGradeList()
 })
 </script>
 

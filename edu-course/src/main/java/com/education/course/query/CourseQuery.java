@@ -23,6 +23,12 @@ public class CourseQuery extends BaseQuery {
     private String courseName;
 
     /**
+     * 关键词（兼容旧版）
+     */
+    @ApiModelProperty("关键词")
+    private String keyword;
+
+    /**
      * 分类ID
      */
     @ApiModelProperty("分类ID")

@@ -213,16 +213,38 @@ async function loadSettings() {
   try {
     const res = await request.get('/system/setting/all')
     if (res.data.code === 200 && res.data.data) {
-      const data = res.data.data
+      const groups = res.data.data
+      // 将数组结构转换为对象结构
+      const groupMap = {}
+      groups.forEach(group => {
+        if (group.items && group.items.length > 0) {
+          const kvMap = {}
+          group.items.forEach(item => {
+            kvMap[item.settingKey] = item.settingValue
+          })
+          groupMap[group.groupCode] = kvMap
+        }
+      })
+      
       const merge = (group) => {
         if (group) Object.keys(group).forEach(k => {
-          if (k in settings) settings[k] = group[k]
+          if (k in settings) {
+            // 类型转换
+            const val = group[k]
+            if (typeof settings[k] === 'number') {
+              settings[k] = Number(val) || 0
+            } else if (typeof settings[k] === 'boolean') {
+              settings[k] = val === 'true' || val === '1'
+            } else {
+              settings[k] = val
+            }
+          }
         })
       }
-      merge(data.basic)
-      merge(data.security)
-      merge(data.notify || data.notification)
-      merge(data.study || data.learning)
+      merge(groupMap.basic)
+      merge(groupMap.security)
+      merge(groupMap.notify)
+      merge(groupMap.study)
     }
   } catch (e) {
     console.warn('加载系统设置失败', e)

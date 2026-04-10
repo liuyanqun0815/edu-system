@@ -15,26 +15,25 @@
     <description>管理后台模块</description>
 
     <dependencies>
+        <!-- 公共模块 -->
         <dependency>
             <groupId>com.education</groupId>
             <artifactId>edu-common</artifactId>
         </dependency>
+        
         <!-- WebSocket 支持 -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-websocket</artifactId>
         </dependency>
-        <!-- Redis 支持 -->
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-data-redis</artifactId>
-        </dependency>
+        
         <!-- XXL-Job 分布式任务调度 -->
         <dependency>
             <groupId>com.xuxueli</groupId>
             <artifactId>xxl-job-core</artifactId>
-            <version>2.3.0</version>
         </dependency>
+        
+        <!-- 业务模块 -->
         <dependency>
             <groupId>com.education</groupId>
             <artifactId>edu-system</artifactId>
@@ -47,11 +46,25 @@
             <groupId>com.education</groupId>
             <artifactId>edu-exam</artifactId>
         </dependency>
-    </dependencies>
 
-    <properties>
-        <xxl-job.version>2.3.0</xxl-job.version>
-    </properties>
+        <!-- Nacos Config -->
+        <dependency>
+            <groupId>com.alibaba.cloud</groupId>
+            <artifactId>spring-cloud-starter-alibaba-nacos-config</artifactId>
+        </dependency>
+
+        <!-- Nacos Discovery (服务注册) -->
+        <dependency>
+            <groupId>com.alibaba.cloud</groupId>
+            <artifactId>spring-cloud-starter-alibaba-nacos-discovery</artifactId>
+        </dependency>
+
+        <!-- Spring Cloud Context (支持@RefreshScope) -->
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-context</artifactId>
+        </dependency>
+    </dependencies>
 
     <build>
         <plugins>

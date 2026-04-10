@@ -9,6 +9,11 @@ import java.util.Map;
 public interface ISysSettingService {
 
     /**
+     * 查询所有设置
+     */
+    List<SysSetting> listAll();
+
+    /**
      * 根据分组查询所有设置
      */
     List<SysSetting> listByGroup(String groupCode);

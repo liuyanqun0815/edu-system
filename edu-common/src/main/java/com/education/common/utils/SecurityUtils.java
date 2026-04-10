@@ -1,5 +1,7 @@
 package com.education.common.utils;
 
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
 /**
@@ -56,9 +58,58 @@ public class SecurityUtils {
     }
 
     /**
-     * 生成BCrypt密码
+     * 获取当前登录用户ID
      */
-    public static void main(String[] args) {
-        System.out.println(encryptPassword("admin123"));
+    public static Long getCurrentUserId() {
+        try {
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+            if (authentication != null && authentication.isAuthenticated()) {
+                Object principal = authentication.getPrincipal();
+                if (principal instanceof Long) {
+                    return (Long) principal;
+                }
+                // 如果是字符串类型的用户ID
+                if (principal instanceof String) {
+                    return Long.valueOf((String) principal);
+                }
+            }
+        } catch (Exception e) {
+            // 未登录或获取失败
+        }
+        return null;
+    }
+
+    /**
+     * 获取当前登录用户名
+     */
+    public static String getCurrentUsername() {
+        try {
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+            if (authentication != null && authentication.isAuthenticated()) {
+                Object principal = authentication.getPrincipal();
+                if (principal instanceof org.springframework.security.core.userdetails.UserDetails) {
+                    return ((org.springframework.security.core.userdetails.UserDetails) principal).getUsername();
+                }
+                if (principal instanceof String) {
+                    return (String) principal;
+                }
+            }
+        } catch (Exception e) {
+            // 未登录或获取失败
+        }
+        return null;
+    }
+
+    /**
+     * 判断当前用户是否已登录
+     */
+    public static boolean isAuthenticated() {
+        try {
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+            return authentication != null && authentication.isAuthenticated()
+                    && !"anonymousUser".equals(authentication.getPrincipal());
+        } catch (Exception e) {
+            return false;
+        }
     }
 }

@@ -2,9 +2,13 @@ package com.education.system.controller;
 
 import cn.hutool.captcha.CaptchaUtil;
 import cn.hutool.captcha.LineCaptcha;
+import com.education.common.constants.BusinessConstants;
+import com.education.common.constants.RedisKeyConstants;
+import com.education.common.constants.RoleCodeConstants;
+import com.education.common.constants.StatusConstants;
 import com.education.common.exception.BusinessException;
 import com.education.common.result.JsonResult;
-import com.education.common.utils.JwtUtils;
+import com.education.common.utils.JwtUtilsProxy;
 import com.education.common.utils.RedisUtils;
 import com.education.common.utils.SecurityUtils;
 import com.education.system.dto.ForgotPasswordDTO;
@@ -60,11 +64,11 @@ public class AuthController {
     private final SysRoleMapper roleMapper;
     private final DynamicMailService mailService;
 
-    /** 登录验证码缓存（使用Redis） */
-    private static final String CAPTCHA_CODE_PREFIX = "captcha:login:";
-
-    /** 找回密码验证码缓存（使用Redis） */
-    private static final String FORGOT_CODE_PREFIX = "captcha:forgot:";
+    /** 登录验证码缓存(使用Redis) */
+    private static final String CAPTCHA_CODE_PREFIX = RedisKeyConstants.CAPTCHA_LOGIN;
+    
+    /** 找回密码验证码缓存(使用Redis) */
+    private static final String FORGOT_CODE_PREFIX = RedisKeyConstants.CAPTCHA_FORGOT;
 
     @ApiOperation("获取验证码")
     @GetMapping("/captcha")
@@ -74,8 +78,8 @@ public class AuthController {
         String code = captcha.getCode().toLowerCase();
         String key = UUID.randomUUID().toString().replace("-", "");
 
-        // 存入Redis，5分钟过期
-        RedisUtils.set(CAPTCHA_CODE_PREFIX + key, code, 5, TimeUnit.MINUTES);
+        // 存入Redis,5分钟过期
+        RedisUtils.set(CAPTCHA_CODE_PREFIX + key, code, BusinessConstants.CAPTCHA_EXPIRE_MINUTES, TimeUnit.MINUTES);
 
         CaptchaVO result = new CaptchaVO();
         result.setCaptchaKey(key);
@@ -117,14 +121,14 @@ public class AuthController {
         user.setNickname(StringUtils.hasText(registerDTO.getNickname()) ? registerDTO.getNickname() : registerDTO.getUsername());
         user.setEmail(registerDTO.getEmail());
         user.setPhone(registerDTO.getPhone());
-        user.setStatus(1); // 默认启用
+        user.setStatus(StatusConstants.ENABLED); // 默认启用
         user.setSex(0); // 默认未知
         userService.save(user);
 
-        // 分配默认角色（学生）
+        // 分配默认角色(学生)
         try {
             LambdaQueryWrapper<SysRole> roleWrapper = new LambdaQueryWrapper<>();
-            roleWrapper.eq(SysRole::getRoleCode, "student");
+            roleWrapper.eq(SysRole::getRoleCode, RoleCodeConstants.STUDENT);
             SysRole studentRole = roleMapper.selectOne(roleWrapper);
             
             if (studentRole != null) {
@@ -167,8 +171,8 @@ public class AuthController {
         // 生成6位验证码
         String code = String.valueOf((int)((Math.random() * 9 + 1) * 100000));
         
-        // 存储到Redis，5分钟过期
-        RedisUtils.set(FORGOT_CODE_PREFIX + user.getEmail(), code, 5, TimeUnit.MINUTES);
+        // 存储到Redis,5分钟过期
+        RedisUtils.set(FORGOT_CODE_PREFIX + user.getEmail(), code, BusinessConstants.CAPTCHA_EXPIRE_MINUTES, TimeUnit.MINUTES);
         
         // 发送邮件
         try {
@@ -254,16 +258,16 @@ public class AuthController {
     @PostMapping("/refresh-token")
     public JsonResult<RefreshTokenVO> refreshToken(@RequestParam String refreshToken) {
         // 验证刷新Token
-        if (!JwtUtils.validateToken(refreshToken)) {
+        if (!JwtUtilsProxy.validateToken(refreshToken)) {
             throw new BusinessException("刷新Token无效或已过期");
         }
         
-        Long userId = JwtUtils.getUserIdFromToken(refreshToken);
-        String username = JwtUtils.getUsernameFromToken(refreshToken);
+        Long userId = JwtUtilsProxy.getUserIdFromToken(refreshToken);
+        String username = JwtUtilsProxy.getUsernameFromToken(refreshToken);
         
         // 生成新Token
-        String newToken = JwtUtils.generateToken(userId, username);
-        String newRefreshToken = JwtUtils.generateRefreshToken(userId, username);
+        String newToken = JwtUtilsProxy.generateToken(userId, username);
+        String newRefreshToken = JwtUtilsProxy.generateRefreshToken(userId, username);
         
         RefreshTokenVO result = new RefreshTokenVO();
         result.setToken(newToken);
@@ -308,8 +312,8 @@ public class AuthController {
         }
 
         // 生成JWT Token
-        String token = JwtUtils.generateToken(user.getId(), user.getUsername());
-        String refreshToken = JwtUtils.generateRefreshToken(user.getId(), user.getUsername());
+        String token = JwtUtilsProxy.generateToken(user.getId(), user.getUsername());
+        String refreshToken = JwtUtilsProxy.generateRefreshToken(user.getId(), user.getUsername());
 
         // 记录登录日志（包含更新用户在线状态、登录时间、登录IP）
         userOnlineService.recordLogin(user.getId(), request);
@@ -334,11 +338,23 @@ public class AuthController {
 
     @ApiOperation("退出登录")
     @PostMapping("/logout")
-    public JsonResult<Void> logout(@RequestParam(required = false) Long userId) {
-        // 记录登出日志（包含更新用户在线状态、累计在线时长）
+    public JsonResult<Void> logout(@RequestParam(required = false) Long userId, HttpServletRequest request) {
+        // 1. 将当前Token加入黑名单(防止Token继续被使用)
+        String token = request.getHeader("Authorization");
+        if (StringUtils.hasText(token) && token.startsWith("Bearer ")) {
+            String actualToken = token.substring(7);
+            // Token剩余有效期作为黑名单过期时间
+            Long expireSeconds = JwtUtilsProxy.getExpireTime(actualToken);
+            if (expireSeconds != null && expireSeconds > 0) {
+                RedisUtils.set(RedisKeyConstants.TOKEN_BLACKLIST + actualToken, "1", expireSeconds, TimeUnit.SECONDS);
+            }
+        }
+        
+        // 2. 记录登出日志（包含更新用户在线状态、累计在线时长）
         if (userId != null) {
             userOnlineService.recordLogout(userId);
         }
+        
         return JsonResult.success("退出成功");
     }
     
@@ -370,11 +386,11 @@ public class AuthController {
                     String roleCode = role.getRoleCode();
                     if (roleCode != null) {
                         String code = roleCode.toLowerCase();
-                        if ("super_admin".equals(code)) {
+                        if (RoleCodeConstants.SUPER_ADMIN.equals(code)) {
                             isSuperAdmin = true;
-                        } else if (code.contains("admin")) {
+                        } else if (code.contains(RoleCodeConstants.ADMIN)) {
                             isAdmin = true;
-                        } else if ("teacher".equals(code)) {
+                        } else if (RoleCodeConstants.TEACHER.equals(code)) {
                             isTeacher = true;
                         }
                     }

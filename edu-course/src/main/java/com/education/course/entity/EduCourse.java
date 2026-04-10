@@ -67,6 +67,11 @@ public class EduCourse extends BaseEntity {
     private Long categoryId;
 
     /**
+     * 大纲ID
+     */
+    private Long outlineId;
+
+    /**
      * 讲师ID
      */
     private Long teacherId;
@@ -80,6 +85,11 @@ public class EduCourse extends BaseEntity {
      * 课程简介
      */
     private String description;
+
+    /**
+     * 学习目标
+     */
+    private String learningObjectives;
 
     /**
      * 课程详情
@@ -100,6 +110,36 @@ public class EduCourse extends BaseEntity {
      * 课程价格
      */
     private BigDecimal price;
+
+    /**
+     * 浏览次数
+     */
+    private Long viewCount;
+
+    /**
+     * 学习人数
+     */
+    private Long learnCount;
+
+    /**
+     * 平均评分(1-5星)
+     */
+    private BigDecimal rating;
+
+    /**
+     * 课程标签(逗号分隔)
+     */
+    private String tags;
+
+    /**
+     * 前置课程要求
+     */
+    private String prerequisites;
+
+    /**
+     * 目标受众
+     */
+    private String targetAudience;
 
     /**
      * 状态 0-草稿 1-已发布 2-已下架

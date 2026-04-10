@@ -33,6 +33,8 @@
             <th>学科</th>
             <th>难度</th>
             <th>分值</th>
+            <th>标签</th>
+            <th>来源</th>
             <th>操作</th>
           </tr>
         </thead>
@@ -44,6 +46,15 @@
             <td>{{ getSubjectName(question.subjectId) }}</td>
             <td><span :class="['difficulty-tag', `difficulty-${question.difficulty}`]">{{ difficultyMap[question.difficulty] }}</span></td>
             <td>{{ question.score }}分</td>
+            <td class="tags-cell">
+              <span v-if="question.tags" class="tag-item">{{ question.tags }}</span>
+              <span v-else class="tag-empty">-</span>
+            </td>
+            <td>
+              <span :class="['source-tag', `source-${question.sourceType}`]">
+                {{ sourceTypeMap[question.sourceType] || '手动' }}
+              </span>
+            </td>
             <td class="actions">
               <button class="action-btn action-edit" @click="handleEdit(question)">编辑</button>
               <button class="action-btn action-delete" @click="handleDelete(question)">删除</button>
@@ -205,6 +216,7 @@ const questionTypeOptions = computed(() => configStore.questionTypes)
 const difficultyOptions = computed(() => configStore.difficultyLevels)
 const typeMap = computed(() => configStore.questionTypeMap)
 const difficultyMap = computed(() => configStore.difficultyMap)
+const sourceTypeMap = { 1: '手动', 2: '导入', 3: 'AI' }
 
 const searchForm = reactive({ questionTitle: '', questionType: '', subjectId: '' })
 const pageNum = ref(1)
@@ -386,6 +398,14 @@ onMounted(async () => {
 .difficulty-tag { padding: 4px 10px; border-radius: 4px; font-size: 12px; }
 .difficulty-1 { background: #f6ffed; color: #52c41a; }
 .difficulty-2 { background: #fff7e6; color: #fa8c16; }
+.difficulty-3 { background: #fff0f6; color: #eb2f96; }
+.tags-cell { max-width: 150px; }
+.tag-item { display: inline-block; padding: 2px 8px; background: #f0f0f0; border-radius: 4px; font-size: 12px; color: #666; }
+.tag-empty { color: #999; font-size: 12px; }
+.source-tag { padding: 4px 10px; border-radius: 4px; font-size: 12px; }
+.source-1 { background: #e6f7ff; color: #1890ff; }
+.source-2 { background: #f6ffed; color: #52c41a; }
+.source-3 { background: #f9f0ff; color: #722ed1; }
 .difficulty-3 { background: #fff1f0; color: #ff4d4f; }
 .actions { display: flex; gap: 8px; }
 .action-btn { padding: 4px 10px; border: none; border-radius: 4px; font-size: 12px; cursor: pointer; transition: all 0.2s; white-space: nowrap; }

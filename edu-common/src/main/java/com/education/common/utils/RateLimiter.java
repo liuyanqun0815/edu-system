@@ -1,5 +1,6 @@
 package com.education.common.utils;
 
+import com.education.common.constants.RedisKeyConstants;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -62,31 +63,31 @@ public class RateLimiter {
     }
 
     /**
-     * 短信验证码限流（5分钟最多5次）
+     * 短信验证码限流(5分钟最多5次)
      */
     public static boolean allowSmsCode(String phone) {
-        return allow("rate:sms:" + phone, 5, 300);
+        return allow(RedisKeyConstants.RATE_SMS + phone, 5, 300);
     }
 
     /**
-     * 登录失败限流（1小时最多3次）
+     * 登录失败限流(1小时最多3次)
      */
     public static boolean allowLoginFail(String username) {
-        return allow("rate:login:fail:" + username, 3, 3600);
+        return allow(RedisKeyConstants.RATE_LOGIN_FAIL + username, 3, 3600);
     }
 
     /**
-     * 接口调用限流（1分钟最多60次）
+     * 接口调用限流(1分钟最多60次)
      */
     public static boolean allowApiCall(String userId) {
-        return allow("rate:api:" + userId, 60, 60);
+        return allow(RedisKeyConstants.RATE_API + userId, 60, 60);
     }
 
     /**
-     * 文件上传限流（1小时最多10次）
+     * 文件上传限流(1小时最多10次)
      */
     public static boolean allowFileUpload(String userId) {
-        return allow("rate:upload:" + userId, 10, 3600);
+        return allow(RedisKeyConstants.RATE_UPLOAD + userId, 10, 3600);
     }
 
     /**

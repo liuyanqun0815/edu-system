@@ -5,7 +5,11 @@ import com.education.common.result.RpcResult;
 import com.education.exam.dto.ExamQuestionVO;
 import com.education.exam.dto.SubmitPaperVO;
 import com.education.exam.entity.*;
-import com.education.exam.mapper.*;
+import com.education.exam.mapper.ExamPaperMapper;
+import com.education.exam.mapper.ExamPaperQuestionMapper;
+import com.education.exam.mapper.ExamQuestionMapper;
+import com.education.exam.mapper.ExamRecordDetailMapper;
+import com.education.exam.mapper.ExamRecordMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -73,7 +77,7 @@ public class OnlineExamService {
     private ExamRecordDetailMapper recordDetailMapper;
     
     @Autowired
-    private QuestionMapper questionMapper;
+    private ExamQuestionMapper examQuestionMapper;
 
     /**
      * 开始考试
@@ -179,17 +183,17 @@ public class OnlineExamService {
             List<ExamRecordDetail> details = recordDetailMapper.selectList(wrapper);
             
             for (ExamRecordDetail detail : details) {
-                Question question = questionMapper.selectById(detail.getQuestionId());
+                ExamQuestion question = examQuestionMapper.selectById(detail.getQuestionId());
                 if (question != null && detail.getUserAnswer() != null) {
                     // 获取该题的分值
                     LambdaQueryWrapper<ExamPaperQuestion> pqWrapper = new LambdaQueryWrapper<>();
                     pqWrapper.eq(ExamPaperQuestion::getPaperId, record.getPaperId())
                              .eq(ExamPaperQuestion::getQuestionId, detail.getQuestionId());
                     ExamPaperQuestion pq = paperQuestionMapper.selectOne(pqWrapper);
-                    int questionScore = pq != null ? pq.getScore() : question.getScore();
+                    int questionScore = pq != null ? pq.getScore() : (question.getScore() != null ? question.getScore().intValue() : 10);
                     
                     // 判断答案
-                    if (detail.getUserAnswer().equalsIgnoreCase(question.getAnswer())) {
+                    if (detail.getUserAnswer().equalsIgnoreCase(question.getCorrectAnswer())) {
                         detail.setIsCorrect(1);
                         detail.setScore(questionScore);
                         score += questionScore;
@@ -242,19 +246,18 @@ public class OnlineExamService {
             List<ExamRecordDetail> details = recordDetailMapper.selectList(wrapper);
             
             for (ExamRecordDetail detail : details) {
-                Question question = questionMapper.selectById(detail.getQuestionId());
+                ExamQuestion question = examQuestionMapper.selectById(detail.getQuestionId());
                 if (question != null) {
                     ExamQuestionVO vo = new ExamQuestionVO();
                     vo.setQuestionId(question.getId());
-                    vo.setTitle(question.getTitle());
+                    vo.setTitle(question.getQuestionTitle());
                     vo.setQuestionType(question.getQuestionType());
-                    vo.setScore(question.getScore());
+                    vo.setScore(question.getScore() != null ? question.getScore().intValue() : 10);
                     vo.setUserAnswer(detail.getUserAnswer());
                     
-                    // 获取选项
+                    // 获取选项（ExamQuestion的options字段为JSON格式）
                     if (question.getQuestionType() == 1 || question.getQuestionType() == 2) {
-                        List<QuestionOption> options = questionMapper.selectOptions(question.getId());
-                        vo.setOptions(options);
+                        vo.setOptionsJson(question.getOptions());
                     }
                     
                     questionList.add(vo);
@@ -279,16 +282,11 @@ public class OnlineExamService {
                 return RpcResult.fail("试卷不存在");
             }
             
-            // 获取试卷题目
-            List<Map<String, Object>> questions = paperQuestionMapper.selectQuestionsByPaperId(paperId);
+            // 提示使用ExamPaperController的导出接口
+            String message = String.format("请使用 /exam/paper/export/word/%d 接口导出Word文档", paperId);
             
-            // TODO: 生成Word文档
-            // 这里可以集成POI生成Word文件
-            
-            String fileName = paper.getName() + "_" + System.currentTimeMillis() + ".docx";
-            
-            log.info("试卷导出成功：paperId={}, fileName={}", paperId, fileName);
-            return RpcResult.success(fileName);
+            log.info("试卷导出提示：paperId={}, message={}", paperId, message);
+            return RpcResult.success(message);
             
         } catch (Exception e) {
             log.error("导出试卷失败：", e);

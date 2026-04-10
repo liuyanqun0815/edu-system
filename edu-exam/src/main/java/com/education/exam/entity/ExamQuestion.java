@@ -60,9 +60,19 @@ public class ExamQuestion extends BaseEntity {
     private Long subjectId;
 
     /**
+     * 年级ID(关联sys_grade表)
+     */
+    private Long gradeId;
+
+    /**
      * 所属年级，如：六年级、初一、高三
      */
     private String grade;
+
+    /**
+     * 考试类型 1-单元测试 2-期中 3-期末 4-模拟考 5-真题 6-课后练习
+     */
+    private Integer examType;
 
     /**
      * 题型 1-单选 2-多选 3-判断 4-填空 5-简答
@@ -75,7 +85,24 @@ public class ExamQuestion extends BaseEntity {
     private String questionTitle;
 
     /**
-     * 选项 JSON格式
+     * 题目图片URL列表(JSON数组格式)
+     * 示例: ["https://example.com/image1.jpg", "https://example.com/image2.png"]
+     */
+    private String images;
+
+    /**
+     * 图片数量
+     */
+    private Integer imageCount;
+
+    /**
+     * 图片描述信息(JSON数组)
+     * 示例: [{"url":"...","description":"题目示意图"}]
+     */
+    private String imageDescriptions;
+
+    /**
+     * 选项 JSON格式(支持图片URL)
      */
     private String options;
 
@@ -103,6 +130,16 @@ public class ExamQuestion extends BaseEntity {
      * 知识点
      */
     private String knowledgePoint;
+
+    /**
+     * 知识点标签(多个标签用逗号分隔)
+     */
+    private String tags;
+
+    /**
+     * 题目来源 1-手动录入 2-批量导入 3-AI生成
+     */
+    private Integer sourceType;
 
     /**
      * 使用次数

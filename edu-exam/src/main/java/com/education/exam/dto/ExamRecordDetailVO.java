@@ -1,9 +1,8 @@
 package com.education.exam.dto;
 
+import com.education.exam.entity.ExamQuestion;
 import com.education.exam.entity.ExamRecord;
 import com.education.exam.entity.ExamRecordDetail;
-import com.education.exam.entity.Question;
-import com.education.exam.entity.QuestionOption;
 import lombok.Data;
 
 import java.util.List;
@@ -18,6 +17,21 @@ public class ExamRecordDetailVO {
      * 考试记录
      */
     private ExamRecord record;
+    
+    /**
+     * 浏览器信息
+     */
+    private String browserInfo;
+    
+    /**
+     * 切屏次数
+     */
+    private Integer screenSwitchCount;
+    
+    /**
+     * 警告次数
+     */
+    private Integer warningCount;
     
     /**
      * 答题详情列表
@@ -52,11 +66,11 @@ public class ExamRecordDetailVO {
         /**
          * 题目信息
          */
-        private Question question;
+        private ExamQuestion question;
         
         /**
-         * 选项列表
+         * 选项JSON（格式：[{"label":"A","content":"..."}]）
          */
-        private List<QuestionOption> options;
+        private String optionsJson;
     }
 }

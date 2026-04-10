@@ -1,10 +1,15 @@
 package com.education.common.utils;
 
+import com.education.common.config.EduBusinessProperties;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.security.Keys;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cloud.context.config.annotation.RefreshScope;
+import org.springframework.stereotype.Component;
 
+import javax.annotation.PostConstruct;
 import java.security.Key;
 import java.util.Date;
 import java.util.HashMap;
@@ -12,24 +17,34 @@ import java.util.Map;
 
 /**
  * JWT工具类
+ * 
+ * <p>支持从Nacos动态配置刷新JWT密钥和过期时间</p>
  */
+@Component
+@RefreshScope
 public class JwtUtils {
 
-    /** 密钥（生产环境应使用更复杂的密钥并存放在配置中心） */
-    private static final String SECRET_KEY = "edu-training-jwt-secret-key-2024-very-long-string-for-security";
-    
-    /** Token有效期：24小时（毫秒） */
-    private static final long EXPIRATION_TIME = 24 * 60 * 60 * 1000;
-    
-    /** 刷新Token有效期：7天（毫秒） */
-    private static final long REFRESH_EXPIRATION_TIME = 7 * 24 * 60 * 60 * 1000;
+    @Autowired
+    private EduBusinessProperties properties;
 
-    private static final Key KEY = Keys.hmacShaKeyFor(SECRET_KEY.getBytes());
+    private static Key KEY;
+    private static long STATIC_EXPIRATION_TIME;
+    private static long STATIC_REFRESH_EXPIRATION_TIME;
+    private static long STATIC_TOKEN_EXPIRING_SOON_THRESHOLD;
+
+    @PostConstruct
+    public void init() {
+        EduBusinessProperties.JwtProperties jwt = properties.getJwt();
+        KEY = Keys.hmacShaKeyFor(jwt.getSecret().getBytes());
+        STATIC_EXPIRATION_TIME = jwt.getExpiration();
+        STATIC_REFRESH_EXPIRATION_TIME = jwt.getRefreshExpiration();
+        STATIC_TOKEN_EXPIRING_SOON_THRESHOLD = properties.getBusiness().getTokenExpiringSoonThreshold();
+    }
 
     /**
      * 生成Token
      */
-    public static String generateToken(Long userId, String username) {
+    public String generateToken(Long userId, String username) {
         Map<String, Object> claims = new HashMap<>();
         claims.put("userId", userId);
         claims.put("username", username);
@@ -38,7 +53,7 @@ public class JwtUtils {
                 .setClaims(claims)
                 .setSubject(username)
                 .setIssuedAt(new Date())
-                .setExpiration(new Date(System.currentTimeMillis() + EXPIRATION_TIME))
+                .setExpiration(new Date(System.currentTimeMillis() + STATIC_EXPIRATION_TIME))
                 .signWith(KEY, SignatureAlgorithm.HS256)
                 .compact();
     }
@@ -46,7 +61,7 @@ public class JwtUtils {
     /**
      * 生成刷新Token
      */
-    public static String generateRefreshToken(Long userId, String username) {
+    public String generateRefreshToken(Long userId, String username) {
         Map<String, Object> claims = new HashMap<>();
         claims.put("userId", userId);
         claims.put("username", username);
@@ -56,7 +71,7 @@ public class JwtUtils {
                 .setClaims(claims)
                 .setSubject(username)
                 .setIssuedAt(new Date())
-                .setExpiration(new Date(System.currentTimeMillis() + REFRESH_EXPIRATION_TIME))
+                .setExpiration(new Date(System.currentTimeMillis() + STATIC_REFRESH_EXPIRATION_TIME))
                 .signWith(KEY, SignatureAlgorithm.HS256)
                 .compact();
     }
@@ -64,7 +79,7 @@ public class JwtUtils {
     /**
      * 从Token中获取Claims
      */
-    public static Claims getClaimsFromToken(String token) {
+    public Claims getClaimsFromToken(String token) {
         try {
             return Jwts.parserBuilder()
                     .setSigningKey(KEY)
@@ -75,11 +90,11 @@ public class JwtUtils {
             return null;
         }
     }
-
+    
     /**
      * 从Token中获取用户ID
      */
-    public static Long getUserIdFromToken(String token) {
+    public Long getUserIdFromToken(String token) {
         Claims claims = getClaimsFromToken(token);
         if (claims == null) {
             return null;
@@ -90,19 +105,19 @@ public class JwtUtils {
         }
         return Long.valueOf(userId.toString());
     }
-
+    
     /**
      * 从Token中获取用户名
      */
-    public static String getUsernameFromToken(String token) {
+    public String getUsernameFromToken(String token) {
         Claims claims = getClaimsFromToken(token);
         return claims != null ? claims.getSubject() : null;
     }
-
+    
     /**
      * 验证Token是否有效
      */
-    public static boolean validateToken(String token) {
+    public boolean validateToken(String token) {
         try {
             Claims claims = getClaimsFromToken(token);
             if (claims == null) {
@@ -114,31 +129,43 @@ public class JwtUtils {
             return false;
         }
     }
-
+    
     /**
-     * 检查Token是否即将过期（剩余时间少于30分钟）
+     * 检查Token是否即将过期(剩余时间少于配置的阈值,默认30分钟)
      */
-    public static boolean isTokenExpiringSoon(String token) {
+    public boolean isTokenExpiringSoon(String token) {
         Claims claims = getClaimsFromToken(token);
         if (claims == null) {
             return true;
         }
         long remainingTime = claims.getExpiration().getTime() - System.currentTimeMillis();
-        return remainingTime < 30 * 60 * 1000; // 30分钟
+        return remainingTime < STATIC_TOKEN_EXPIRING_SOON_THRESHOLD;
     }
-
+    
     /**
-     * 刷新Token
+     * 获取Token剩余有效时间(秒)
      */
-    public static String refreshToken(String token) {
+    public Long getExpireTime(String token) {
         Claims claims = getClaimsFromToken(token);
         if (claims == null) {
             return null;
         }
-        
+        long remainingTime = claims.getExpiration().getTime() - System.currentTimeMillis();
+        return remainingTime > 0 ? remainingTime / 1000 : 0;
+    }
+    
+    /**
+     * 刷新Token
+     */
+    public String refreshToken(String token) {
+        Claims claims = getClaimsFromToken(token);
+        if (claims == null) {
+            return null;
+        }
+            
         Long userId = getUserIdFromToken(token);
         String username = claims.getSubject();
-        
+            
         return generateToken(userId, username);
     }
 }

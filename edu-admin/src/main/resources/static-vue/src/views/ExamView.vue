@@ -165,6 +165,38 @@
               <label>试卷描述</label>
               <textarea v-model="form.description" rows="3" placeholder="请输入试卷描述"></textarea>
             </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>年级</label>
+                <select v-model="form.gradeId">
+                  <option :value="null">请选择年级</option>
+                  <option v-for="grade in gradeList" :key="grade.id" :value="grade.id">
+                    {{ grade.itemName || grade.itemLabel || grade.name }}
+                  </option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>最大考试次数</label>
+                <input v-model.number="form.maxAttempts" type="number" min="0" placeholder="0表示不限次数">
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>考试开始时间</label>
+                <input v-model="form.examStartTime" type="datetime-local" placeholder="请选择开始时间">
+              </div>
+              <div class="form-group">
+                <label>考试结束时间</label>
+                <input v-model="form.examEndTime" type="datetime-local" placeholder="请选择结束时间">
+              </div>
+            </div>
+            <div class="form-group">
+              <label>防作弊</label>
+              <select v-model="form.antiCheat">
+                <option :value="0">关闭</option>
+                <option :value="1">开启</option>
+              </select>
+            </div>
             <div class="form-actions">
               <button type="button" class="btn btn-default" @click="closeModal">取消</button>
               <button type="submit" class="btn btn-primary" :disabled="submitting">
@@ -408,10 +440,6 @@ const configStore = useConfigStore()
 const statusMap = { 0: '草稿', 1: '已发布', 2: '已归档' }
 const questionTypeMap = computed(() => configStore.questionTypeMap)
 const difficultyMap = computed(() => configStore.difficultyMap)
-const gradeList = computed(() => {
-  const grades = configStore.gradeList
-  return grades.map(g => g.itemName || g.itemLabel)
-})
 
 // 搜索表单
 const searchForm = reactive({
@@ -476,14 +504,22 @@ const form = reactive({
   id: null,
   name: '',
   subjectId: null,
+  gradeId: null,
   paperType: 1,
   totalScore: 100,
   passScore: 60,
   duration: 120,
   questionCount: 0,
   description: '',
-  status: 0
+  status: 0,
+  examStartTime: '',
+  examEndTime: '',
+  maxAttempts: 0,
+  antiCheat: 0
 })
+
+// 年级列表（从configStore获取）
+const gradeList = computed(() => configStore.gradeList)
 
 // 获取学科名称
 function getSubjectName(subjectId) {
@@ -581,12 +617,17 @@ function handleEdit(paper) {
     id: paper.id,
     name: paper.name,
     subjectId: paper.subjectId,
+    gradeId: paper.gradeId || null,
     paperType: paper.paperType || 1,
     totalScore: paper.totalScore || 100,
     passScore: paper.passScore || 60,
     duration: paper.duration || 120,
     description: paper.description || '',
-    status: paper.status
+    status: paper.status,
+    examStartTime: paper.examStartTime || '',
+    examEndTime: paper.examEndTime || '',
+    maxAttempts: paper.maxAttempts || 0,
+    antiCheat: paper.antiCheat || 0
   })
   showModal.value = true
 }
@@ -603,12 +644,17 @@ function resetForm() {
     id: null,
     name: '',
     subjectId: null,
+    gradeId: null,
     paperType: 1,
     totalScore: 100,
     passScore: 60,
     duration: 120,
     description: '',
-    status: 0
+    status: 0,
+    examStartTime: '',
+    examEndTime: '',
+    maxAttempts: 0,
+    antiCheat: 0
   })
 }
 

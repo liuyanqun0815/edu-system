@@ -1,5 +1,6 @@
 package com.education.common.exception;
 
+import com.education.common.result.ErrorCode;
 import lombok.Getter;
 
 /**
@@ -72,5 +73,32 @@ public class BusinessException extends RuntimeException {
         super(msg, cause);
         this.code = code;
         this.msg = msg;
+    }
+
+    /**
+     * 使用错误码枚举构造异常
+     */
+    public BusinessException(ErrorCode errorCode) {
+        super(errorCode.getMessage());
+        this.code = errorCode.getCode();
+        this.msg = errorCode.getMessage();
+    }
+
+    /**
+     * 使用错误码枚举构造异常(带自定义消息)
+     */
+    public BusinessException(ErrorCode errorCode, String customMsg) {
+        super(customMsg);
+        this.code = errorCode.getCode();
+        this.msg = customMsg;
+    }
+
+    /**
+     * 使用错误码枚举构造异常(包装底层异常)
+     */
+    public BusinessException(ErrorCode errorCode, Throwable cause) {
+        super(errorCode.getMessage(), cause);
+        this.code = errorCode.getCode();
+        this.msg = errorCode.getMessage();
     }
 }

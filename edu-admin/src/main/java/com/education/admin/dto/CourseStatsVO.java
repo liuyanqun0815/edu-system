@@ -2,6 +2,7 @@ package com.education.admin.dto;
 
 import lombok.Data;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 /**
@@ -24,4 +25,19 @@ public class CourseStatsVO {
      * 草稿课程数
      */
     private Long draft;
+    
+    /**
+     * 总浏览量
+     */
+    private Long totalViewCount;
+    
+    /**
+     * 总学习人数
+     */
+    private Long totalLearnCount;
+    
+    /**
+     * 平均评分
+     */
+    private BigDecimal avgRating;
 }

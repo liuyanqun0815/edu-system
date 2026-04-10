@@ -2,6 +2,7 @@ package com.education.course.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.education.course.dto.CourseStatsVO;
 import com.education.common.result.JsonResult;
 import com.education.common.result.PageResult;
 import com.education.course.entity.EduCourse;
@@ -27,6 +28,9 @@ import org.springframework.web.bind.annotation.*;
  *   <tr><td>POST</td><td>/course/course</td><td>新增课程（草稿状态）</td></tr>
  *   <tr><td>PUT</td><td>/course/course</td><td>修改课程信息</td></tr>
  *   <tr><td>DELETE</td><td>/course/course/{id}</td><td>删除课程（逻辑删除）</td></tr>
+ *   <tr><td>GET</td><td>/course/course/stats</td><td>获取课程统计数据</td></tr>
+ *   <tr><td>POST</td><td>/course/course/{id}/view</td><td>增加浏览次数</td></tr>
+ *   <tr><td>POST</td><td>/course/course/{id}/learn</td><td>增加学习人数</td></tr>
  * </table>
  * 
  * <h3>查询参数：</h3>
@@ -64,12 +68,15 @@ public class EduCourseController {
                 .orderByDesc(EduCourse::getCreateTime);
         
         Page<EduCourse> page = courseService.page(new Page<>(query.getPageNum(), query.getPageSize()), wrapper);
-        return JsonResult.success(PageResult.of(page.getTotal(), page.getRecords(), query.getPageNum(), query.getPageSize()));
+        return JsonResult.success(PageResult.of(page));
     }
 
     @ApiOperation("根据ID查询课程")
     @GetMapping("/{id}")
     public JsonResult<EduCourse> getById(@PathVariable Long id) {
+        // 增加浏览次数
+        courseService.incrementViewCount(id);
+        
         EduCourse course = courseService.getById(id);
         return JsonResult.success(course);
     }
@@ -93,5 +100,19 @@ public class EduCourseController {
     public JsonResult<Void> delete(@PathVariable Long id) {
         courseService.removeById(id);
         return JsonResult.success("删除成功");
+    }
+
+    @ApiOperation("获取课程统计数据")
+    @GetMapping("/stats")
+    public JsonResult<CourseStatsVO> getStats() {
+        CourseStatsVO stats = courseService.getCourseStats();
+        return JsonResult.success(stats);
+    }
+
+    @ApiOperation("增加学习人数")
+    @PostMapping("/{id}/learn")
+    public JsonResult<Void> incrementLearnCount(@PathVariable Long id) {
+        courseService.incrementLearnCount(id);
+        return JsonResult.success("学习人数+1");
     }
 }

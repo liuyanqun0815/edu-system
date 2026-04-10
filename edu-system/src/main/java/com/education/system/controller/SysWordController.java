@@ -1,25 +1,25 @@
 package com.education.system.controller;
 
+import com.alibaba.excel.EasyExcel;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.education.common.result.JsonResult;
 import com.education.common.result.PageResult;
+import com.education.system.dto.WordExcelDTO;
 import com.education.system.entity.SysWord;
 import com.education.system.mapper.SysWordMapper;
+import com.education.system.service.ISysExcelTemplateService;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.poi.ss.usermodel.*;
-import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
-import java.net.URLEncoder;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
@@ -37,6 +37,7 @@ import java.util.Map;
 public class SysWordController {
 
     private final SysWordMapper wordMapper;
+    private final ISysExcelTemplateService excelTemplateService;
 
     @ApiOperation("分页查询单词列表")
     @GetMapping("/page")
@@ -52,7 +53,7 @@ public class SysWordController {
                .eq(difficulty != null, SysWord::getDifficulty, difficulty)
                .orderByDesc(SysWord::getId);
         IPage<SysWord> page = wordMapper.selectPage(new Page<>(pageNum, pageSize), wrapper);
-        PageResult<SysWord> result = PageResult.of(page.getTotal(), page.getRecords(), pageNum, pageSize);
+        PageResult<SysWord> result = PageResult.of(page);
         return JsonResult.success(result);
     }
 
@@ -97,126 +98,131 @@ public class SysWordController {
 
     @ApiOperation("下载导入模板")
     @GetMapping("/template")
-    public void downloadTemplate(HttpServletResponse response) {
-        try {
-            response.setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-            String fileName = URLEncoder.encode("单词导入模板.xlsx", "UTF-8");
-            response.setHeader("Content-Disposition", "attachment;filename=" + fileName);
-
-            Workbook workbook = new XSSFWorkbook();
-            Sheet sheet = workbook.createSheet("单词数据");
-
-            // 创建标题行
-            Row headerRow = sheet.createRow(0);
-            String[] headers = {"英文单词*", "音标", "中文释义*", "年级", "难度", "例句"};
-            for (int i = 0; i < headers.length; i++) {
-                Cell cell = headerRow.createCell(i);
-                cell.setCellValue(headers[i]);
-                CellStyle style = workbook.createCellStyle();
-                Font font = workbook.createFont();
-                font.setBold(true);
-                style.setFont(font);
-                style.setFillForegroundColor(IndexedColors.GREY_25_PERCENT.getIndex());
-                style.setFillPattern(FillPatternType.SOLID_FOREGROUND);
-                cell.setCellStyle(style);
-                sheet.setColumnWidth(i, 20 * 256);
-            }
-
-            // 示例数据
-            Row exampleRow = sheet.createRow(1);
-            exampleRow.createCell(0).setCellValue("hello");
-            exampleRow.createCell(1).setCellValue("/həˈləʊ/");
-            exampleRow.createCell(2).setCellValue("你好；喂");
-            exampleRow.createCell(3).setCellValue("初一");
-            exampleRow.createCell(4).setCellValue("1");
-            exampleRow.createCell(5).setCellValue("Hello, how are you?");
-
-            // 说明行
-            Row noteRow = sheet.createRow(3);
-            Cell noteCell = noteRow.createCell(0);
-            noteCell.setCellValue("说明：带*为必填项；难度：1-简单，2-中等，3-困难；年级可选：六年级、初一、初二、初三、高一、高二、高三");
-
-            workbook.write(response.getOutputStream());
-            workbook.close();
-        } catch (IOException e) {
-            log.error("下载模板失败", e);
-        }
+    public void downloadTemplate(HttpServletResponse response) throws IOException {
+        // 使用统一的Excel模板系统生成
+        excelTemplateService.generateTemplate(response, "word_import");
     }
 
     @ApiOperation("批量导入单词")
     @PostMapping("/import")
     public JsonResult<Map<String, Object>> importWords(@RequestParam("file") MultipartFile file) {
         try {
-            Workbook workbook = WorkbookFactory.create(file.getInputStream());
-            Sheet sheet = workbook.getSheetAt(0);
-
-            List<SysWord> successList = new ArrayList<>();
-            List<String> errorList = new ArrayList<>();
-
-            for (int i = 1; i <= sheet.getLastRowNum(); i++) {
-                Row row = sheet.getRow(i);
-                if (row == null) continue;
-
-                String word = getCellValue(row.getCell(0));
-                if (!StringUtils.hasText(word)) continue; // 跳过空行
-
-                String phonetic = getCellValue(row.getCell(1));
-                String translation = getCellValue(row.getCell(2));
-                String grade = getCellValue(row.getCell(3));
-                String difficultyStr = getCellValue(row.getCell(4));
-                String example = getCellValue(row.getCell(5));
-
-                if (!StringUtils.hasText(translation)) {
-                    errorList.add("第" + (i + 1) + "行：中文释义不能为空");
-                    continue;
-                }
-
-                SysWord wordEntity = new SysWord();
-                wordEntity.setWord(word.trim());
-                wordEntity.setPhonetic(phonetic != null ? phonetic.trim() : null);
-                wordEntity.setTranslation(translation.trim());
-                wordEntity.setGrade(StringUtils.hasText(grade) ? grade.trim() : "初一");
-                wordEntity.setDifficulty(parseDifficulty(difficultyStr));
-                wordEntity.setExample(example != null ? example.trim() : null);
-                wordEntity.setCreateTime(new Date());
-                wordEntity.setUpdateTime(new Date());
-
-                wordMapper.insert(wordEntity);
-                successList.add(wordEntity);
-            }
-
-            workbook.close();
-
-            Map<String, Object> result = new HashMap<>();
-            result.put("successCount", successList.size());
-            result.put("errorCount", errorList.size());
-            result.put("errors", errorList);
-            return JsonResult.success(result);
+            // 使用EasyExcel读取
+            List<WordExcelDTO> excelDataList = EasyExcel.read(file.getInputStream())
+                    .head(WordExcelDTO.class)
+                    .sheet()
+                    .doReadSync();
+                
+            return batchSaveWordsFromExcel(excelDataList);
         } catch (Exception e) {
             log.error("导入失败", e);
             return JsonResult.error("导入失败: " + e.getMessage());
         }
     }
-
-    private String getCellValue(Cell cell) {
-        if (cell == null) return null;
-        switch (cell.getCellType()) {
-            case STRING:
-                return cell.getStringCellValue();
-            case NUMERIC:
-                return String.valueOf((int) cell.getNumericCellValue());
-            default:
-                return null;
+    
+    @ApiOperation("从解析结果导入单词")
+    @PostMapping("/import/parsed")
+    public JsonResult<Map<String, Object>> importFromParsed(@RequestBody List<Map<String, Object>> parsedData) {
+        return batchSaveWordsFromParsed(parsedData);
+    }
+    
+    /**
+     * 批量保存单词(从解析结果)
+     */
+    private JsonResult<Map<String, Object>> batchSaveWordsFromParsed(List<Map<String, Object>> dataList) {
+        List<SysWord> successList = new ArrayList<>();
+        List<String> errorList = new ArrayList<>();
+            
+        for (int i = 0; i < dataList.size(); i++) {
+            Map<String, Object> data = dataList.get(i);
+            int rowNum = i + 1;
+                
+            try {
+                // 验证必填项
+                String word = (String) data.get("word");
+                String translation = (String) data.get("translation");
+                    
+                if (!StringUtils.hasText(word)) {
+                    errorList.add("第" + rowNum + "行：英文单词不能为空");
+                    continue;
+                }
+                if (!StringUtils.hasText(translation)) {
+                    errorList.add("第" + rowNum + "行：中文释义不能为空");
+                    continue;
+                }
+                    
+                // 转换为Entity
+                SysWord wordEntity = new SysWord();
+                wordEntity.setWord(word.trim());
+                wordEntity.setPhonetic(StringUtils.hasText((String) data.get("phonetic")) ? 
+                        ((String) data.get("phonetic")).trim() : null);
+                wordEntity.setTranslation(translation.trim());
+                wordEntity.setGrade(StringUtils.hasText((String) data.get("grade")) ? 
+                        ((String) data.get("grade")).trim() : "九年级");
+                wordEntity.setDifficulty(data.get("difficulty") != null ? 
+                        (Integer) data.get("difficulty") : 2);
+                wordEntity.setExample(StringUtils.hasText((String) data.get("example")) ? 
+                        ((String) data.get("example")).trim() : null);
+                wordEntity.setCreateTime(new Date());
+                wordEntity.setUpdateTime(new Date());
+                    
+                wordMapper.insert(wordEntity);
+                successList.add(wordEntity);
+            } catch (Exception e) {
+                log.error("第{}行导入失败", rowNum, e);
+                errorList.add("第" + rowNum + "行：导入失败 - " + e.getMessage());
+            }
         }
+            
+        Map<String, Object> result = new HashMap<>();
+        result.put("successCount", successList.size());
+        result.put("errorCount", errorList.size());
+        result.put("errors", errorList);
+        return JsonResult.success(result);
+    }
+    
+    /**
+     * 批量保存单词(从Excel)
+     */
+    private JsonResult<Map<String, Object>> batchSaveWordsFromExcel(List<WordExcelDTO> excelDataList) {
+        List<SysWord> successList = new ArrayList<>();
+        List<String> errorList = new ArrayList<>();
+            
+        for (int i = 0; i < excelDataList.size(); i++) {
+            WordExcelDTO dto = excelDataList.get(i);
+            int rowNum = i + 2; // Excel行号介2开始(第1行是表头)
+                
+            // 跳过空行
+            if (!StringUtils.hasText(dto.getWord())) {
+                continue;
+            }
+                
+            // 验证必填项
+            if (!StringUtils.hasText(dto.getTranslation())) {
+                errorList.add("第" + rowNum + "行：中文释义不能为空");
+                continue;
+            }
+                
+            // 转换为Entity
+            SysWord wordEntity = new SysWord();
+            wordEntity.setWord(dto.getWord().trim());
+            wordEntity.setPhonetic(StringUtils.hasText(dto.getPhonetic()) ? dto.getPhonetic().trim() : null);
+            wordEntity.setTranslation(dto.getTranslation().trim());
+            wordEntity.setGrade(StringUtils.hasText(dto.getGrade()) ? dto.getGrade().trim() : "初一");
+            wordEntity.setDifficulty(dto.getDifficulty() != null ? dto.getDifficulty() : 1);
+            wordEntity.setExample(StringUtils.hasText(dto.getExample()) ? dto.getExample().trim() : null);
+            wordEntity.setCreateTime(new Date());
+            wordEntity.setUpdateTime(new Date());
+                
+            wordMapper.insert(wordEntity);
+            successList.add(wordEntity);
+        }
+            
+        Map<String, Object> result = new HashMap<>();
+        result.put("successCount", successList.size());
+        result.put("errorCount", errorList.size());
+        result.put("errors", errorList);
+        return JsonResult.success(result);
     }
 
-    private Integer parseDifficulty(String difficultyStr) {
-        if (!StringUtils.hasText(difficultyStr)) return 1;
-        try {
-            int d = Integer.parseInt(difficultyStr.trim());
-            return d >= 1 && d <= 3 ? d : 1;
-        } catch (NumberFormatException e) {
-            return 1;
-        }
-    }
 }

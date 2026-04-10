@@ -1,8 +1,6 @@
 package com.education.system.service;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.education.system.entity.SysConfig;
-import com.education.system.mapper.SysConfigMapper;
+import com.education.system.dto.SettingGroupVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.mail.javamail.JavaMailSenderImpl;
@@ -10,60 +8,60 @@ import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 
 import javax.mail.internet.MimeMessage;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 /**
- * 动态邮件服务：从 sys_config 表读取邮件配置，无需在 yml 中硬编码
+ * 动态邮件服务：从 sys_setting 表读取邮件配置，无需在 yml 中硬编码
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class DynamicMailService {
 
-    private final SysConfigMapper configMapper;
+    private final ISysSettingService settingService;
 
     /**
-     * 从数据库读取 email.* 配置，构建 JavaMailSender
+     * 从 sys_setting 表读取 notify 分组的邮件配置，构建 JavaMailSender
      */
     private JavaMailSenderImpl buildMailSender() {
-        List<SysConfig> configs = configMapper.selectList(
-                new LambdaQueryWrapper<SysConfig>()
-                        .likeRight(SysConfig::getConfigKey, "email.")
-        );
-        Map<String, String> cfgMap = configs.stream()
-                .collect(Collectors.toMap(SysConfig::getConfigKey, c -> c.getConfigValue() != null ? c.getConfigValue() : ""));
+        Map<String, String> notifySettings = getNotifySettings();
+        if (notifySettings == null || notifySettings.isEmpty()) {
+            log.warn("未找到邮件配置");
+            return null;
+        }
 
-        String host = cfgMap.getOrDefault("email.smtp.host", "smtp.qq.com");
-        String portStr = cfgMap.getOrDefault("email.smtp.port", "587");
-        String username = cfgMap.getOrDefault("email.smtp.username", "");
-        String password = cfgMap.getOrDefault("email.smtp.password", "");
-        boolean ssl = "true".equalsIgnoreCase(cfgMap.getOrDefault("email.smtp.ssl", "false"));
+        String host = notifySettings.get("smtpHost");
+        String portStr = notifySettings.get("smtpPort");
+        String username = notifySettings.get("smtpFrom");
+        String password = notifySettings.get("smtpPassword");
 
-        int port;
-        try {
-            port = Integer.parseInt(portStr);
-        } catch (NumberFormatException e) {
-            port = ssl ? 465 : 587;
+        if (host == null || host.isEmpty() || username == null || username.isEmpty()) {
+            log.warn("邮件配置不完整：host={}, username={}", host, username);
+            return null;
+        }
+
+        int port = 587;
+        if (portStr != null && !portStr.isEmpty()) {
+            try {
+                port = Integer.parseInt(portStr);
+            } catch (NumberFormatException e) {
+                log.warn("SMTP端口格式错误：{}", portStr);
+            }
         }
 
         JavaMailSenderImpl sender = new JavaMailSenderImpl();
         sender.setHost(host);
         sender.setPort(port);
         sender.setUsername(username);
-        sender.setPassword(password);
+        sender.setPassword(password != null ? password : "");
         sender.setDefaultEncoding("UTF-8");
 
         java.util.Properties props = sender.getJavaMailProperties();
         props.put("mail.transport.protocol", "smtp");
         props.put("mail.smtp.auth", "true");
-        if (ssl) {
-            props.put("mail.smtp.ssl.enable", "true");
-            props.put("mail.smtp.socketFactory.class", "javax.net.ssl.SSLSocketFactory");
-        } else {
-            props.put("mail.smtp.starttls.enable", "true");
-        }
+        props.put("mail.smtp.starttls.enable", "true");
         props.put("mail.smtp.timeout", "5000");
         props.put("mail.smtp.connectiontimeout", "5000");
 
@@ -71,18 +69,34 @@ public class DynamicMailService {
     }
 
     /**
-     * 判断邮件功能是否已启用（sys_config 中 email.enabled = 1 且 password 不为空）
+     * 获取 notify 分组的配置
+     */
+    private Map<String, String> getNotifySettings() {
+        List<SettingGroupVO> allSettings = settingService.listAllGrouped();
+        for (SettingGroupVO group : allSettings) {
+            if ("notify".equals(group.getGroupCode())) {
+                Map<String, String> result = new HashMap<>();
+                for (SettingGroupVO.SettingItemVO item : group.getItems()) {
+                    result.put(item.getSettingKey(), item.getSettingValue());
+                }
+                return result;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * 判断邮件功能是否已启用
      */
     public boolean isEnabled() {
         try {
-            SysConfig enabledCfg = configMapper.selectOne(
-                    new LambdaQueryWrapper<SysConfig>().eq(SysConfig::getConfigKey, "email.enabled"));
-            if (enabledCfg == null || !"1".equals(enabledCfg.getConfigValue())) {
+            Map<String, String> notifySettings = getNotifySettings();
+            if (notifySettings == null) {
                 return false;
             }
-            SysConfig pwdCfg = configMapper.selectOne(
-                    new LambdaQueryWrapper<SysConfig>().eq(SysConfig::getConfigKey, "email.smtp.password"));
-            return pwdCfg != null && pwdCfg.getConfigValue() != null && !pwdCfg.getConfigValue().isEmpty();
+            String enabled = notifySettings.get("emailEnabled");
+            String password = notifySettings.get("smtpPassword");
+            return "true".equalsIgnoreCase(enabled) && password != null && !password.isEmpty();
         } catch (Exception e) {
             log.warn("检查邮件配置失败: {}", e.getMessage());
             return false;
@@ -90,12 +104,11 @@ public class DynamicMailService {
     }
 
     /**
-     * 获取发件人邮箱（读自 sys_config: email.from）
+     * 获取发件人邮箱
      */
     public String getFromEmail() {
-        SysConfig cfg = configMapper.selectOne(
-                new LambdaQueryWrapper<SysConfig>().eq(SysConfig::getConfigKey, "email.from"));
-        return cfg != null && cfg.getConfigValue() != null ? cfg.getConfigValue() : "";
+        Map<String, String> notifySettings = getNotifySettings();
+        return notifySettings != null ? notifySettings.getOrDefault("smtpFrom", "") : "";
     }
 
     /**

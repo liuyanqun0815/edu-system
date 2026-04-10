@@ -51,6 +51,21 @@ public class SysWord implements Serializable {
     private String example;
 
     /**
+     * 题目类型(逗号分隔): spell-拼写,choice_select-看词选义,choice_word-看义选词,translate-翻译,sentence_fill-例句填空
+     */
+    private String questionType;
+
+    /**
+     * AI推荐标记:0-否 1-是
+     */
+    private Integer aiRecommended;
+
+    /**
+     * 错误次数统计
+     */
+    private Integer wrongCount;
+
+    /**
      * 创建时间
      */
     private Date createTime;

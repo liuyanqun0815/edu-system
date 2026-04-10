@@ -74,6 +74,30 @@ const router = createRouter({
           meta: { title: '单词训练' }
         },
         {
+          path: 'word-training',
+          name: 'word-training',
+          component: () => import('@/views/WordTrainingView.vue'),
+          meta: { title: '单词AI训练' }
+        },
+        {
+          path: 'word-training-session/:sessionId',
+          name: 'word-training-session',
+          component: () => import('@/views/WordTrainingSession.vue'),
+          meta: { title: '训练中' }
+        },
+        {
+          path: 'word-training-result/:sessionId',
+          name: 'word-training-result',
+          component: () => import('@/views/WordTrainingResult.vue'),
+          meta: { title: '训练结果' }
+        },
+        {
+          path: 'word-wrongbook',
+          name: 'word-wrongbook',
+          component: () => import('@/views/WordWrongBookView.vue'),
+          meta: { title: '我的错题本' }
+        },
+        {
           path: 'user',
           name: 'user',
           component: () => import('@/views/UserView.vue'),
@@ -168,6 +192,24 @@ const router = createRouter({
           name: 'lesson',
           component: () => import('@/views/LessonView.vue'),
           meta: { title: '课程排课' }
+        },
+        {
+          path: 'ai-import',
+          name: 'ai-import',
+          component: () => import('@/views/AIImportView.vue'),
+          meta: { title: 'AI智能导入' }
+        },
+        {
+          path: 'ai-resource',
+          name: 'ai-resource',
+          component: () => import('@/views/AiResourceView.vue'),
+          meta: { title: 'AI资源管理' }
+        },
+        {
+          path: 'parse-template',
+          name: 'parse-template',
+          component: () => import('@/views/ParseTemplateManage.vue'),
+          meta: { title: '解析模板管理' }
         }
       ]
     }

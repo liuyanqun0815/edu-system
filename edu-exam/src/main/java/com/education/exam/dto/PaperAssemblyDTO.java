@@ -26,6 +26,11 @@ public class PaperAssemblyDTO {
     private String grade;
     
     /**
+     * 考试类型 1-单元测试 2-期中 3-期末 4-模拟考 5-真题 6-课后练习
+     */
+    private Integer examType;
+    
+    /**
      * 难度配置列表
      */
     private List<DifficultyConfig> difficultyConfigs;
@@ -44,6 +49,11 @@ public class PaperAssemblyDTO {
          * 题型 1-单选 2-多选 3-判断 4-填空 5-简答
          */
         private Integer questionType;
+        
+        /**
+         * 考试类型 1-单元测试 2-期中 3-期末 4-模拟考 5-真题 6-课后练习
+         */
+        private Integer examType;
         
         /**
          * 抽取数量

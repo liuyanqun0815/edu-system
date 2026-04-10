@@ -15,7 +15,7 @@ public interface ExamPaperQuestionMapper extends BaseMapper<ExamPaperQuestion> {
     @Select("SELECT * FROM exam_paper_question WHERE paper_id = #{paperId}")
     List<ExamPaperQuestion> selectByPaperId(@Param("paperId") Long paperId);
     
-    @Select("SELECT q.*, pq.score as paperScore, pq.question_order FROM question q " +
+    @Select("SELECT q.*, pq.score as paperScore, pq.question_order FROM exam_question q " +
             "JOIN exam_paper_question pq ON q.id = pq.question_id " +
             "WHERE pq.paper_id = #{paperId} ORDER BY pq.question_order")
     List<Map<String, Object>> selectQuestionsByPaperId(@Param("paperId") Long paperId);

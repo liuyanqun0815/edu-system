@@ -3,6 +3,8 @@
     <div class="page-header">
       <h1 class="page-title">单词训练</h1>
       <div class="header-actions">
+        <button class="btn btn-success" @click="goToTraining">🎯 AI智能训练</button>
+        <button class="btn btn-success" @click="goToAIImport">🤖 AI智能导入</button>
         <button class="btn btn-default" @click="downloadTemplate">📥 下载模板</button>
         <button class="btn btn-info" @click="openImportModal">📤 批量导入</button>
         <button class="btn btn-primary" @click="openAddModal">+ 添加单词</button>
@@ -154,10 +156,12 @@
 
 <script setup>
 import { ref, reactive, onMounted, computed } from 'vue'
+import { useRouter } from 'vue-router'
 import request from '@/utils/request'
 import { useMessage } from '@/composables/useMessage'
 import { useConfigStore } from '@/stores/config'
 
+const router = useRouter()
 const { toast, confirm: confirmDialog } = useMessage()
 const configStore = useConfigStore()
 
@@ -247,6 +251,16 @@ function downloadTemplate() {
   window.open('/system/word/template', '_blank')
 }
 
+// 跳转到AI导入页面
+function goToAIImport() {
+  router.push({ path: '/ai-import' })
+}
+
+// 跳转到AI训练页面
+function goToTraining() {
+  router.push({ name: 'word-training' })
+}
+
 // 打开导入弹窗
 function openImportModal() {
   importFile.value = null
@@ -312,6 +326,8 @@ onMounted(async () => {
 .btn { padding: 10px 25px; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; }
 .btn-primary { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
 .btn-default { background: #f0f0f0; color: #666; }
+.btn-info { background: #1890ff; color: white; }
+.btn-success { background: #52c41a; color: white; }
 .btn-danger { background: #ff4d4f; color: white; }
 .search-bar { display: flex; gap: 12px; margin-bottom: 20px; padding: 20px; background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
 .search-input, .search-select { padding: 10px 15px; border: 1px solid #e0e0e0; border-radius: 8px; font-size: 14px; outline: none; }

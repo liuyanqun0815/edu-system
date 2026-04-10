@@ -58,7 +58,7 @@ public class SysEvaluationServiceImpl extends ServiceImpl<SysEvaluationMapper, S
         wrapper.orderByDesc(SysEvaluation::getCreateTime);
         
         page = this.page(page, wrapper);
-        return PageResult.of(page.getTotal(), page.getRecords(), query.getPageNum(), query.getPageSize());
+        return PageResult.of(page);
     }
     
     @Override

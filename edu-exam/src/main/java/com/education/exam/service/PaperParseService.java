@@ -1,18 +1,25 @@
 package com.education.exam.service;
 
+import com.education.common.constants.BusinessConstants;
 import com.education.common.result.RpcResult;
-import com.education.exam.entity.Question;
-import com.education.exam.entity.QuestionOption;
+import com.education.common.utils.QuestionImageUtil;
+import com.education.exam.entity.ExamQuestion;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.xwpf.usermodel.XWPFDocument;
+import org.apache.poi.xwpf.usermodel.XWPFPictureData;
 import org.apache.poi.xwpf.usermodel.XWPFParagraph;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.InputStream;
+import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -42,7 +49,7 @@ import java.util.regex.Pattern;
  * <pre>
  * 1. 读取Word/文本内容
  * 2. 逐行解析，识别题目、选项、答案
- * 3. 构建 Question 对象
+ * 3. 构建 ExamQuestion 对象（选项存储为JSON）
  * 4. 批量保存到数据库
  * </pre>
  * 
@@ -66,8 +73,8 @@ import java.util.regex.Pattern;
  *   <li>解析后的题目可在题库管理中进一步编辑</li>
  * </ul>
  * 
- * @see Question 题目实体
- * @see QuestionService 题目服务
+ * @see ExamQuestion 题目实体
+ * @see IExamQuestionService 题目服务
  * @author education-team
  */
 @Slf4j
@@ -75,30 +82,48 @@ import java.util.regex.Pattern;
 public class PaperParseService {
 
     @Autowired
-    private QuestionService questionService;
+    private IExamQuestionService examQuestionService;
+
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
+    /**
+     * 批量保存题目(带事务)
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public void saveQuestionsWithTransaction(List<ExamQuestion> questions) {
+        if (questions != null && !questions.isEmpty()) {
+            examQuestionService.saveBatch(questions);
+        }
+    }
 
     /**
      * 解析Word试卷
      */
-    public RpcResult<List<Question>> parseWordPaper(MultipartFile file, Long gradeId, Long subjectId) {
+    @Transactional(rollbackFor = Exception.class)
+    public RpcResult<List<ExamQuestion>> parseWordPaper(MultipartFile file, Long gradeId, Long subjectId) {
         try {
-            List<Question> questions = new ArrayList<>();
+            List<ExamQuestion> questions = new ArrayList<>();
             
             InputStream is = file.getInputStream();
             XWPFDocument document = new XWPFDocument(is);
             
-            List<XWPFParagraph> paragraphs = document.getParagraphs();
-            Question currentQuestion = null;
-            List<QuestionOption> currentOptions = new ArrayList<>();
+            // 提取文档中的所有图片及其位置信息
+            List<XWPFPictureData> allPictures = document.getAllPictures();
+            List<PicturePositionInfo> picturePositions = new ArrayList<>();
             
-            for (XWPFParagraph para : paragraphs) {
+            List<XWPFParagraph> paragraphs = document.getParagraphs();
+            ExamQuestion currentQuestion = null;
+            List<Map<String, String>> currentOptions = new ArrayList<>();
+            List<String> currentImages = new ArrayList<>();
+            int currentQuestionStartIndex = 0;
+            int questionIndex = 0;
+            
+            for (int i = 0; i < paragraphs.size(); i++) {
+                XWPFParagraph para = paragraphs.get(i);
                 String text = para.getText().trim();
                 if (text.isEmpty()) continue;
                 
                 // 匹配题目（支持多种格式）
-                // 格式1: 1. 题目内容
-                // 格式2: 1、题目内容  
-                // 格式3: 1) 题目内容
                 Pattern questionPattern = Pattern.compile("^(\\d+)[.、)\\s]+(.+)");
                 Matcher questionMatcher = questionPattern.matcher(text);
                 
@@ -113,54 +138,100 @@ public class PaperParseService {
                 if (questionMatcher.find()) {
                     // 保存上一题
                     if (currentQuestion != null) {
-                        currentQuestion.setOptions(currentOptions);
+                        currentQuestion.setOptions(objectMapper.writeValueAsString(currentOptions));
+                        if (!currentImages.isEmpty()) {
+                            currentQuestion.setImages(objectMapper.writeValueAsString(currentImages));
+                            currentQuestion.setImageCount(currentImages.size());
+                        }
                         questions.add(currentQuestion);
                     }
                     
                     // 创建新题目
-                    currentQuestion = new Question();
-                    currentQuestion.setTitle(questionMatcher.group(2));
-                    currentQuestion.setGradeId(gradeId);
+                    currentQuestion = new ExamQuestion();
+                    currentQuestion.setQuestionTitle(questionMatcher.group(2));
+                    currentQuestion.setGrade(gradeId != null ? String.valueOf(gradeId) : null);
                     currentQuestion.setSubjectId(subjectId);
+                    currentQuestion.setExamType(1); // 默认单元测试
                     currentQuestion.setQuestionType(1); // 默认单选
                     currentQuestion.setDifficulty(2); // 默认中等
-                    currentQuestion.setScore(10);
+                    currentQuestion.setScore(BusinessConstants.DEFAULT_QUESTION_SCORE);
+                    currentQuestion.setStatus(1);
                     currentOptions = new ArrayList<>();
+                    currentImages = new ArrayList<>();
+                    currentQuestionStartIndex = i;
+                    questionIndex++;
                     
                 } else if (optionMatcher.find() && currentQuestion != null) {
                     // 添加选项
-                    QuestionOption option = new QuestionOption();
-                    option.setOptionLabel(optionMatcher.group(1));
-                    option.setOptionContent(optionMatcher.group(2));
+                    Map<String, String> option = new HashMap<>();
+                    option.put("label", optionMatcher.group(1));
+                    option.put("content", optionMatcher.group(2));
                     currentOptions.add(option);
                     
                 } else if (answerMatcher.find() && currentQuestion != null) {
                     // 设置答案
                     String answer = answerMatcher.group(1);
-                    currentQuestion.setAnswer(answer);
-                    
-                    // 标记正确选项
-                    for (QuestionOption opt : currentOptions) {
-                        if (answer.contains(opt.getOptionLabel())) {
-                            opt.setIsCorrect(1);
-                        }
-                    }
+                    currentQuestion.setCorrectAnswer(answer);
                 }
             }
             
             // 保存最后一题
             if (currentQuestion != null) {
-                currentQuestion.setOptions(currentOptions);
+                currentQuestion.setOptions(objectMapper.writeValueAsString(currentOptions));
+                if (!currentImages.isEmpty()) {
+                    currentQuestion.setImages(objectMapper.writeValueAsString(currentImages));
+                    currentQuestion.setImageCount(currentImages.size());
+                }
                 questions.add(currentQuestion);
+            }
+            
+            // 智能匹配图片到题目
+            if (!allPictures.isEmpty() && !questions.isEmpty()) {
+                // 策略: 根据图片数量和题目数量进行分配
+                List<String> imageUrls = QuestionImageUtil.extractAndSaveImages(
+                    allPictures, 
+                    questions.get(0).getId() != null ? questions.get(0).getId() : 0L
+                );
+                
+                if (!imageUrls.isEmpty()) {
+                    if (imageUrls.size() <= questions.size()) {
+                        // 图片少于题目: 按顺序分配
+                        for (int i = 0; i < imageUrls.size(); i++) {
+                            ExamQuestion question = questions.get(i);
+                            List<String> questionImages = new ArrayList<>();
+                            questionImages.add(imageUrls.get(i));
+                            question.setImages(objectMapper.writeValueAsString(questionImages));
+                            question.setImageCount(1);
+                        }
+                    } else {
+                        // 图片多于题目: 平均分配
+                        int imagesPerQuestion = imageUrls.size() / questions.size();
+                        int remainingImages = imageUrls.size() % questions.size();
+                        int imageIndex = 0;
+                        
+                        for (int i = 0; i < questions.size(); i++) {
+                            ExamQuestion question = questions.get(i);
+                            List<String> questionImages = new ArrayList<>();
+                            int count = imagesPerQuestion + (i < remainingImages ? 1 : 0);
+                            
+                            for (int j = 0; j < count && imageIndex < imageUrls.size(); j++) {
+                                questionImages.add(imageUrls.get(imageIndex++));
+                            }
+                            
+                            question.setImages(objectMapper.writeValueAsString(questionImages));
+                            question.setImageCount(questionImages.size());
+                        }
+                    }
+                    
+                    log.info("智能匹配图片: {}张图片分配到{}道题目", imageUrls.size(), questions.size());
+                }
             }
             
             document.close();
             is.close();
             
-            // 批量保存题目
-            for (Question q : questions) {
-                questionService.saveQuestionWithOptions(q);
-            }
+            // 批量保存题目到exam_question表
+            saveQuestionsWithTransaction(questions);
             
             log.info("试卷解析成功，共解析{}道题目", questions.size());
             return RpcResult.success(questions);
@@ -172,15 +243,29 @@ public class PaperParseService {
     }
 
     /**
+     * 图片位置信息
+     */
+    private static class PicturePositionInfo {
+        int paragraphIndex;
+        XWPFPictureData pictureData;
+        
+        public PicturePositionInfo(int paragraphIndex, XWPFPictureData pictureData) {
+            this.paragraphIndex = paragraphIndex;
+            this.pictureData = pictureData;
+        }
+    }
+
+    /**
      * 解析文本格式的试卷
      */
-    public RpcResult<List<Question>> parseTextPaper(String content, Long gradeId, Long subjectId) {
+    @Transactional(rollbackFor = Exception.class)
+    public RpcResult<List<ExamQuestion>> parseTextPaper(String content, Long gradeId, Long subjectId) {
         try {
-            List<Question> questions = new ArrayList<>();
+            List<ExamQuestion> questions = new ArrayList<>();
             String[] lines = content.split("\\n");
             
-            Question currentQuestion = null;
-            List<QuestionOption> currentOptions = new ArrayList<>();
+            ExamQuestion currentQuestion = null;
+            List<Map<String, String>> currentOptions = new ArrayList<>();
             
             for (String line : lines) {
                 line = line.trim();
@@ -200,47 +285,42 @@ public class PaperParseService {
                 
                 if (questionMatcher.find()) {
                     if (currentQuestion != null) {
-                        currentQuestion.setOptions(currentOptions);
+                        currentQuestion.setOptions(objectMapper.writeValueAsString(currentOptions));
                         questions.add(currentQuestion);
                     }
                     
-                    currentQuestion = new Question();
-                    currentQuestion.setTitle(questionMatcher.group(2));
-                    currentQuestion.setGradeId(gradeId);
+                    currentQuestion = new ExamQuestion();
+                    currentQuestion.setQuestionTitle(questionMatcher.group(2));
+                    currentQuestion.setGrade(gradeId != null ? String.valueOf(gradeId) : null);
                     currentQuestion.setSubjectId(subjectId);
+                    currentQuestion.setExamType(1); // 默认单元测试
                     currentQuestion.setQuestionType(1);
                     currentQuestion.setDifficulty(2);
-                    currentQuestion.setScore(10);
+                    currentQuestion.setScore(BusinessConstants.DEFAULT_QUESTION_SCORE);
+                    currentQuestion.setStatus(1);
                     currentOptions = new ArrayList<>();
                     
                 } else if (optionMatcher.find() && currentQuestion != null) {
-                    QuestionOption option = new QuestionOption();
-                    option.setOptionLabel(optionMatcher.group(1));
-                    option.setOptionContent(optionMatcher.group(2));
+                    Map<String, String> option = new HashMap<>();
+                    option.put("label", optionMatcher.group(1));
+                    option.put("content", optionMatcher.group(2));
                     currentOptions.add(option);
                     
                 } else if (answerMatcher.find() && currentQuestion != null) {
                     String answer = answerMatcher.group(1);
-                    currentQuestion.setAnswer(answer);
-                    
-                    for (QuestionOption opt : currentOptions) {
-                        if (answer.contains(opt.getOptionLabel())) {
-                            opt.setIsCorrect(1);
-                        }
-                    }
+                    currentQuestion.setCorrectAnswer(answer);
                 }
             }
             
             if (currentQuestion != null) {
-                currentQuestion.setOptions(currentOptions);
+                currentQuestion.setOptions(objectMapper.writeValueAsString(currentOptions));
                 questions.add(currentQuestion);
             }
             
-            // 批量保存
-            for (Question q : questions) {
-                questionService.saveQuestionWithOptions(q);
-            }
+            // 批量保存题目到exam_question表
+            saveQuestionsWithTransaction(questions);
             
+            log.info("文本解析成功，共解析{}道题目", questions.size());
             return RpcResult.success(questions);
             
         } catch (Exception e) {

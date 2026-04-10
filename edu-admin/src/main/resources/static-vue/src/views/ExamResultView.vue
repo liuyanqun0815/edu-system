@@ -32,6 +32,34 @@
         </div>
       </div>
 
+      <!-- 防作弊信息 -->
+      <div v-if="result.record.screenSwitchCount > 0 || result.record.warningCount > 0" class="anti-cheat-section">
+        <div class="anti-cheat-header">
+          <h3>⚠️ 防作弊监控</h3>
+          <span :class="['cheat-status', result.hasCheating ? 'danger' : 'warning']">
+            {{ result.hasCheating ? '存在作弊行为' : '疑似违规' }}
+          </span>
+        </div>
+        <div class="anti-cheat-stats">
+          <div class="cheat-stat">
+            <span class="cheat-label">浏览器:</span>
+            <span class="cheat-value">{{ result.record.browserInfo || '未知' }}</span>
+          </div>
+          <div class="cheat-stat">
+            <span class="cheat-label">切屏次数:</span>
+            <span class="cheat-value" :class="{ 'danger': result.record.screenSwitchCount > 5 }">
+              {{ result.record.screenSwitchCount || 0 }}
+            </span>
+          </div>
+          <div class="cheat-stat">
+            <span class="cheat-label">警告次数:</span>
+            <span class="cheat-value" :class="{ 'danger': result.record.warningCount > 3 }">
+              {{ result.record.warningCount || 0 }}
+            </span>
+          </div>
+        </div>
+      </div>
+
       <!-- 答题详情 -->
       <div class="questions-section">
         <h2 class="section-title">答题详情</h2>
@@ -207,6 +235,73 @@ onMounted(() => {
 }
 
 .score-card.wrong .score-value {
+  color: #f5576c;
+}
+
+/* 防作弊信息 */
+.anti-cheat-section {
+  background: white;
+  border-radius: 12px;
+  padding: 25px;
+  margin-bottom: 30px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  border-left: 4px solid #faad14;
+}
+
+.anti-cheat-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.anti-cheat-header h3 {
+  font-size: 18px;
+  color: #333;
+  margin: 0;
+}
+
+.cheat-status {
+  padding: 6px 16px;
+  border-radius: 20px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.cheat-status.warning {
+  background: #fff7e6;
+  color: #fa8c16;
+}
+
+.cheat-status.danger {
+  background: #fff0f6;
+  color: #f5576c;
+}
+
+.anti-cheat-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 20px;
+}
+
+.cheat-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cheat-label {
+  font-size: 13px;
+  color: #999;
+}
+
+.cheat-value {
+  font-size: 20px;
+  font-weight: 600;
+  color: #333;
+}
+
+.cheat-value.danger {
   color: #f5576c;
 }
 

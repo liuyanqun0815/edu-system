@@ -21,6 +21,11 @@ public class SysSettingServiceImpl implements ISysSettingService {
     private final SysSettingMapper settingMapper;
 
     @Override
+    public List<SysSetting> listAll() {
+        return settingMapper.selectList(null);
+    }
+
+    @Override
     public List<SysSetting> listByGroup(String groupCode) {
         return settingMapper.selectList(
             new LambdaQueryWrapper<SysSetting>()
@@ -67,13 +72,10 @@ public class SysSettingServiceImpl implements ISysSettingService {
             String value = entry.getValue() == null ? "" : entry.getValue();
             if (existMap.containsKey(key)) {
                 // 更新
-                settingMapper.update(null,
-                    new LambdaUpdateWrapper<SysSetting>()
-                        .eq(SysSetting::getGroupCode, groupCode)
-                        .eq(SysSetting::getSettingKey, key)
-                        .set(SysSetting::getSettingValue, value)
-                        .set(SysSetting::getUpdateTime, now)
-                );
+                SysSetting setting = existMap.get(key);
+                setting.setSettingValue(value);
+                setting.setUpdateTime(now);
+                settingMapper.updateById(setting);
             } else {
                 // 插入
                 SysSetting s = new SysSetting();

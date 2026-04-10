@@ -28,7 +28,11 @@ public class PaperExportVO {
     public static class QuestionItem {
         private Long id;
         private Integer questionType;
+        private Integer examType;
         private String questionTitle;
+        private String images; // 题目图片URL列表
+        private Integer imageCount;
+        private String imageDescriptions; // 图片描述
         private String options;
         private Integer difficulty;
         private Integer score;

@@ -1,6 +1,7 @@
 package com.education.exam.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.education.common.utils.QuestionImageUtil;
 import com.education.exam.dto.PaperExportVO;
 import com.education.exam.entity.ExamPaper;
 import com.education.exam.entity.ExamPaperQuestion;
@@ -9,6 +10,7 @@ import com.education.exam.mapper.ExamPaperQuestionMapper;
 import com.education.exam.service.IExamPaperService;
 import com.education.exam.service.IExamQuestionService;
 import com.education.exam.service.IPaperExportService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.itextpdf.text.*;
 import com.itextpdf.text.pdf.BaseFont;
 import com.itextpdf.text.pdf.PdfPCell;
@@ -37,6 +39,7 @@ public class PaperExportServiceImpl implements IPaperExportService {
     private final IExamPaperService paperService;
     private final IExamQuestionService questionService;
     private final ExamPaperQuestionMapper paperQuestionMapper;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Override
     public void exportToWord(Long paperId, HttpServletResponse response) {
@@ -113,6 +116,63 @@ public class PaperExportServiceImpl implements IPaperExportService {
                             q.getScore()));
                     qRun.setFontSize(12);
                     qRun.setFontFamily("宋体");
+
+                    // 插入题目图片
+                    if (q.getImages() != null && !q.getImages().isEmpty()) {
+                        try {
+                            List<String> imageUrls = objectMapper.readValue(q.getImages(), List.class);
+                            List<String> descriptions = new ArrayList<>();
+                            
+                            // 解析图片描述(如果有)
+                            if (q.getImageDescriptions() != null && !q.getImageDescriptions().isEmpty()) {
+                                try {
+                                    List<Map<String, String>> descList = objectMapper.readValue(
+                                        q.getImageDescriptions(), 
+                                        new com.fasterxml.jackson.core.type.TypeReference<List<Map<String, String>>>(){}
+                                    );
+                                    for (Map<String, String> desc : descList) {
+                                        descriptions.add(desc.getOrDefault("description", ""));
+                                    }
+                                } catch (Exception e) {
+                                    // 忽略解析错误
+                                }
+                            }
+                            
+                            for (int imgIdx = 0; imgIdx < imageUrls.size(); imgIdx++) {
+                                String imageUrl = imageUrls.get(imgIdx);
+                                String physicalPath = QuestionImageUtil.getImagePhysicalPath(imageUrl);
+                                
+                                if (physicalPath != null && new java.io.File(physicalPath).exists()) {
+                                    // 插入图片描述
+                                    if (imgIdx < descriptions.size() && !descriptions.get(imgIdx).isEmpty()) {
+                                        XWPFParagraph descPara = document.createParagraph();
+                                        XWPFRun descRun = descPara.createRun();
+                                        descRun.setText("[" + descriptions.get(imgIdx) + "]");
+                                        descRun.setFontSize(10);
+                                        descRun.setColor("666666");
+                                        descRun.setItalic(true);
+                                    }
+                                    
+                                    // 插入图片
+                                    XWPFParagraph imgPara = document.createParagraph();
+                                    imgPara.setAlignment(ParagraphAlignment.CENTER);
+                                    XWPFRun imgRun = imgPara.createRun();
+                                    try (java.io.FileInputStream fis = new java.io.FileInputStream(physicalPath)) {
+                                        imgRun.addPicture(fis, 
+                                            org.apache.poi.xwpf.usermodel.Document.PICTURE_TYPE_JPEG,
+                                            imageUrl, 
+                                            org.apache.poi.util.Units.toEMU(450), 
+                                            org.apache.poi.util.Units.toEMU(300));
+                                    }
+                                    
+                                    // 图片后空行
+                                    document.createParagraph();
+                                }
+                            }
+                        } catch (Exception e) {
+                            log.warn("插入题目图片失败: questionId={}", q.getId(), e);
+                        }
+                    }
 
                     // 选项（如果是选择题）
                     String options = q.getOptions();
@@ -219,6 +279,56 @@ public class PaperExportServiceImpl implements IPaperExportService {
                     qPara.setSpacingBefore(10);
                     document.add(qPara);
 
+                    // 插入题目图片
+                    if (q.getImages() != null && !q.getImages().isEmpty()) {
+                        try {
+                            List<String> imageUrls = objectMapper.readValue(q.getImages(), List.class);
+                            List<String> descriptions = new ArrayList<>();
+                            
+                            // 解析图片描述(如果有)
+                            if (q.getImageDescriptions() != null && !q.getImageDescriptions().isEmpty()) {
+                                try {
+                                    List<Map<String, String>> descList = objectMapper.readValue(
+                                        q.getImageDescriptions(), 
+                                        new com.fasterxml.jackson.core.type.TypeReference<List<Map<String, String>>>(){}
+                                    );
+                                    for (Map<String, String> desc : descList) {
+                                        descriptions.add(desc.getOrDefault("description", ""));
+                                    }
+                                } catch (Exception e) {
+                                    // 忽略解析错误
+                                }
+                            }
+                            
+                            for (int imgIdx = 0; imgIdx < imageUrls.size(); imgIdx++) {
+                                String imageUrl = imageUrls.get(imgIdx);
+                                String physicalPath = QuestionImageUtil.getImagePhysicalPath(imageUrl);
+                                
+                                if (physicalPath != null && new java.io.File(physicalPath).exists()) {
+                                    // 插入图片描述
+                                    if (imgIdx < descriptions.size() && !descriptions.get(imgIdx).isEmpty()) {
+                                        Paragraph descPara = new Paragraph("[" + descriptions.get(imgIdx) + "]", 
+                                            new Font(bfChinese, 10, Font.ITALIC, new com.itextpdf.text.BaseColor(102, 102, 102)));
+                                        descPara.setAlignment(Element.ALIGN_CENTER);
+                                        descPara.setSpacingBefore(5);
+                                        descPara.setSpacingAfter(5);
+                                        document.add(descPara);
+                                    }
+                                    
+                                    // 插入图片
+                                    com.itextpdf.text.Image img = com.itextpdf.text.Image.getInstance(physicalPath);
+                                    img.scaleToFit(450, 300);
+                                    img.setAlignment(Element.ALIGN_CENTER);
+                                    img.setSpacingBefore(10);
+                                    img.setSpacingAfter(10);
+                                    document.add(img);
+                                }
+                            }
+                        } catch (Exception e) {
+                            log.warn("插入题目图片失败: questionId={}", q.getId(), e);
+                        }
+                    }
+
                     // 选项
                     String options = q.getOptions();
                     if (options != null && !options.isEmpty() &&
@@ -275,7 +385,11 @@ public class PaperExportServiceImpl implements IPaperExportService {
                 PaperExportVO.QuestionItem item = new PaperExportVO.QuestionItem();
                 item.setId(question.getId());
                 item.setQuestionType(question.getQuestionType());
+                item.setExamType(question.getExamType());
                 item.setQuestionTitle(question.getQuestionTitle());
+                item.setImages(question.getImages());
+                item.setImageCount(question.getImageCount());
+                item.setImageDescriptions(question.getImageDescriptions());
                 item.setOptions(question.getOptions());
                 item.setDifficulty(question.getDifficulty());
                 item.setScore(pq.getScore() != null ? pq.getScore() :

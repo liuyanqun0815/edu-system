@@ -1,10 +1,14 @@
 package com.education.common.interceptor;
 
+import com.education.common.config.EduBusinessProperties;
 import com.education.common.exception.BusinessException;
+import com.education.common.constants.RedisKeyConstants;
 import com.education.common.utils.RateLimiter;
 import com.education.common.utils.RedisUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
 
 import javax.servlet.http.HttpServletRequest;
@@ -17,21 +21,25 @@ import java.util.UUID;
  * 功能：
  * 1. 基于Redis实现接口级别的防重复提交
  * 2. 结合限流器防止恶意刷接口
- * 3. 支持全局配置和注解控制
+ * 3. 支持从Nacos动态读取限流配置
  * 
  * 使用方式：
  * <pre>
  * // 1. 注册拦截器（WebMvcConfig）
- * registry.addInterceptor(new RepeatSubmitInterceptor())
+ * registry.addInterceptor(repeatSubmitInterceptor)
  *         .addPathPatterns("/api/**")
  *         .excludePathPatterns("/api/public/**");
  * 
  * // 2. 自动生效，所有请求都会进行防重复校验
  * </pre>
  */
+@Component
 public class RepeatSubmitInterceptor implements HandlerInterceptor {
     
     private static final Logger logger = LoggerFactory.getLogger(RepeatSubmitInterceptor.class);
+    
+    @Autowired
+    private EduBusinessProperties properties;
     
     /**
      * 防重复提交标识头
@@ -73,9 +81,11 @@ public class RepeatSubmitInterceptor implements HandlerInterceptor {
             // 6. 设置防重复标识
             RedisUtils.set(repeatKey, UUID.randomUUID().toString(), REPEAT_SUBMIT_EXPIRE, java.util.concurrent.TimeUnit.SECONDS);
             
-            // 7. 接口限流检查（1分钟最多60次）
-            String rateKey = String.format("rate:api:%s", userIdentify);
-            if (!RateLimiter.allow(rateKey, 60, 60)) {
+            // 7. 接口限流检查(从Nacos动态读取配置)
+            String rateKey = String.format("%s%s", RedisKeyConstants.RATE_API, userIdentify);
+            EduBusinessProperties.RateLimitProperties.RateLimitConfig apiLimit = 
+                properties.getRateLimit().getApi();
+            if (!RateLimiter.allow(rateKey, apiLimit.getMaxCount(), apiLimit.getWindowSeconds())) {
                 throw new BusinessException("操作过于频繁，请稍后再试");
             }
             

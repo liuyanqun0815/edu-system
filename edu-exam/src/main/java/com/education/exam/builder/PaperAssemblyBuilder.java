@@ -3,7 +3,6 @@ package com.education.exam.builder;
 import com.education.exam.dto.PaperAssemblyDTO;
 import com.education.exam.entity.ExamPaper;
 import com.education.exam.entity.ExamPaperQuestion;
-import com.education.exam.entity.Question;
 import lombok.Data;
 
 import java.math.BigDecimal;

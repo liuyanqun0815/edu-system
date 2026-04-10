@@ -1,0 +1,216 @@
+# ====================================================
+# Nacos配置导入指南
+# ====================================================
+# 使用说明:
+# 1. 登录Nacos控制台: http://127.0.0.1:8848/nacos (默认账号密码: nacos/nacos)
+# 2. 进入"配置管理" -> "配置列表"
+# 3. 点击"+"创建配置,按以下内容填写
+# 4. 每个配置项创建一个Data ID
+# ====================================================
+
+# ====================================================
+# 配置1: edu-admin应用配置(数据源+Redis+XXL-JOB)
+# ====================================================
+# Data ID: edu-admin
+# Group: DEFAULT_GROUP
+# 配置格式: YAML
+# ----------------------------------------------------
+spring:
+  datasource:
+    type: com.alibaba.druid.pool.DruidDataSource
+    driver-class-name: com.mysql.jdbc.Driver
+    url: jdbc:mysql://localhost:3306/edu_training?useUnicode=true&characterEncoding=utf8&zeroDateTimeBehavior=convertToNull&useSSL=true&serverTimezone=GMT%2B8
+    username: root
+    password: 123456
+    druid:
+      initial-size: 5
+      min-idle: 5
+      max-active: 20
+      max-wait: 60000
+      test-while-idle: true
+      test-on-borrow: false
+      test-on-return: false
+      pool-prepared-statements: true
+      max-pool-prepared-statement-per-connection-size: 20
+      filters: stat,wall
+      connection-properties: druid.stat.mergeSql=true;druid.stat.slowSqlMillis=5000
+
+  # Redis 配置
+  redis:
+    host: localhost
+    port: 6379
+    password:
+    database: 0
+    lettuce:
+      pool:
+        max-active: 8
+        max-idle: 8
+        min-idle: 0
+        max-wait: -1ms
+
+# XXL-Job 配置
+xxl:
+  job:
+    admin:
+      addresses: http://localhost:8088/xxl-job-admin
+    accessToken: default_token
+    executor:
+      appname: edu-training-executor
+      address:
+      ip:
+      port: 8089
+      logpath: /data/applogs/xxl-job/jobhandler
+      logretentiondays: 30
+
+
+# ====================================================
+# 配置2: 技术配置(环境相关)
+# ====================================================
+# Data ID: edu-business
+# Group: DEFAULT_GROUP
+# 配置格式: YAML
+# ----------------------------------------------------
+# ⚠️ 配置分层原则:
+# 1. Nacos: 技术配置(JWT/限流/邮件超时/CORS) - 部署相关,环境不同配置不同
+# 2. sys_setting表: 业务配置(文件上传/验证码/学习配置) - 管理员后台可实时修改
+# 3. 数据库字段DEFAULT: 实体默认值(性别/状态) - 数据库层面解决
+# 4. 代码常量: 固定规则(分页大小/转换系数) - 不需要动态修改
+# ====================================================
+
+edu:
+  # =========================================
+  # JWT配置(技术配置 - 环境相关)
+  # =========================================
+  jwt:
+    secret: ${JWT_SECRET:edu-training-jwt-secret-key-2026-change-me}
+    expiration: 86400000              # Token有效期: 24小时(毫秒)
+    refresh-expiration: 604800000     # 刷新Token有效期: 7天(毫秒)
+    token-header: Authorization       # Token请求头名称
+    token-prefix: "Bearer "           # Token前缀
+  
+  # =========================================
+  # 限流配置(技术配置 - 环境相关)
+  # =========================================
+  rate-limit:
+    sms:
+      max-count: 5
+      window-seconds: 300             # 5分钟
+    login-fail:
+      max-count: 3
+      window-seconds: 3600            # 1小时
+    api:
+      max-count: 60
+      window-seconds: 60              # 1分钟
+    upload:
+      max-count: 10
+      window-seconds: 3600            # 1小时
+    repeat-submit:
+      max-count: 60
+      window-seconds: 60              # 1分钟
+  
+  # =========================================
+  # 防重复提交配置
+  # =========================================
+  repeat-submit:
+    expire-seconds: 3                 # 防重复标识过期时间(秒)
+    header-name: X-Repeat-Submit-Token # 防重复请求头名称
+  
+  # =========================================
+  # 文件上传配置(兜底配置)
+  # =========================================
+  # ⚠️ 优先级说明: sys_setting表 > Nacos配置 > 代码默认值
+  # 建议将文件上传配置迁移到 sys_setting 表(group_code='file'),
+  # 支持后台实时修改,无需重启服务
+  # =========================================
+  file:
+    upload:
+      path: doc/uploads/                # 上传路径
+      url-prefix: /uploads/             # URL前缀
+      max-size: 10                      # 最大文件(MB)
+      allowed-image-types: jpg,jpeg,png,gif,webp
+  
+  # =========================================
+  # 邮件配置(技术配置)
+  # =========================================
+  mail:
+    date-format: "yyyy-MM-dd HH:mm:ss"
+    template-path: "classpath:email-templates/"
+    # SMTP超时配置(毫秒)
+    timeout: 5000                       # 邮件发送超时
+    connection-timeout: 5000            # 连接超时
+    # 注意: 邮件模板存储在 sys_email_template 表中,通过后台界面管理
+    # 现有模板: lesson_notify_teacher/parent/student (上课提醒)
+  
+  # =========================================
+  # CORS跨域配置(技术配置 - 环境相关)
+  # =========================================
+  cors:
+    allowed-origins: "*"              # 允许的源(多个用逗号分隔)
+    allowed-methods: "GET,POST,PUT,DELETE,OPTIONS"  # 允许的方法
+    allowed-headers: "*"              # 允许的请求头
+    allow-credentials: true           # 是否允许携带凭证
+    max-age: 3600                     # 预检请求缓存时间(秒)
+
+
+# ====================================================
+# 支持双源读取的配置(过渡期)
+# ====================================================
+# 以下配置同时支持 Nacos 和 sys_setting 表读取,优先级:
+# sys_setting表 > Nacos配置 > 代码默认值
+#
+# 1. 文件上传配置 ⭐ 建议迁移到 sys_setting
+#    → Nacos: edu.file.upload (当前配置)
+#    → sys_setting: group_code='file' (支持实时修改)
+#    → 字段: uploadPath, urlPrefix, maxSize, allowedImageTypes
+#
+# ====================================================
+# 建议迁移到 sys_setting 表的配置
+# ====================================================
+# 以下配置建议从 Nacos 迁移到 sys_setting 表,支持后台实时修改:
+#
+# 1. 验证码配置
+#    → sys_setting (group_code='security')
+#    → 字段: captchaEnabled, captchaLength, captchaWidth, captchaHeight, captchaExpire
+#
+# 2. 学习业务配置
+#    → sys_setting (group_code='learn')
+#    → 字段: defaultQuestionScore, examPassScore, allowRetake
+#
+# ====================================================
+# 其他配置说明
+# ====================================================
+# 以下配置通过其他方式管理:
+#
+# 1. 默认题目分值/及格分数线
+#    → 建议在试卷表(exam_paper)加字段: default_question_score, pass_score
+#    → 创建试卷时指定,更灵活
+#
+# 2. 默认课程时长
+#    → 建议在课程表(edu_course)加字段: default_duration
+#
+# 3. 默认角色/性别/状态
+#    → 数据库字段 DEFAULT 值解决
+#    → sys_user.role_id DEFAULT 4(学生角色)
+#    → sys_user.sex DEFAULT 0
+#    → sys_user.status DEFAULT 1
+#
+# 4. 分页大小
+#    → 代码常量,不需要动态配置
+#    → DEFAULT_PAGE_SIZE = 10, MAX_PAGE_SIZE = 100
+#
+
+
+# ====================================================
+# 环境变量说明(生产环境推荐使用)
+# ====================================================
+# 在启动脚本中设置以下环境变量:
+# 
+# export NACOS_SERVER_ADDR=192.168.1.100:8848
+# export NACOS_NAMESPACE=your-namespace-id
+# export NACOS_USERNAME=nacos
+# export NACOS_PASSWORD=your-password
+# export JWT_SECRET=your-production-secret-key
+# 
+# Windows PowerShell:
+# $env:NACOS_SERVER_ADDR="192.168.1.100:8848"
+# $env:JWT_SECRET="your-production-secret-key"

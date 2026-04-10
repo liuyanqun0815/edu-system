@@ -41,6 +41,12 @@ public class QuestionQuery extends BaseQuery {
     private String grade;
 
     /**
+     * 考试类型（1-单元测试 2-期中 3-期末 4-模拟考 5-真题 6-课后练习）
+     */
+    @ApiModelProperty("考试类型")
+    private Integer examType;
+
+    /**
      * 难度等级
      */
     @ApiModelProperty("难度等级")
@@ -57,4 +63,16 @@ public class QuestionQuery extends BaseQuery {
      */
     @ApiModelProperty("状态")
     private Integer status;
+
+    /**
+     * 题目来源类型（1手动/2导入/3解析）
+     */
+    @ApiModelProperty("题目来源类型")
+    private Integer sourceType;
+
+    /**
+     * 题目标签（逗号分隔）
+     */
+    @ApiModelProperty("题目标签")
+    private String tags;
 }

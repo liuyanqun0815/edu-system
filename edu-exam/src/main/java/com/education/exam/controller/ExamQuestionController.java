@@ -1,21 +1,23 @@
 package com.education.exam.controller;
 
+import com.alibaba.excel.EasyExcel;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.education.common.constants.BusinessConstants;
 import com.education.common.result.JsonResult;
 import com.education.common.result.PageResult;
+import com.education.exam.dto.QuestionExcelDTO;
 import com.education.exam.entity.ExamQuestion;
 import com.education.exam.entity.ExamSubject;
 import com.education.exam.query.QuestionQuery;
 import com.education.exam.service.IExamQuestionService;
 import com.education.exam.service.IExamSubjectService;
+import com.education.system.service.ISysExcelTemplateService;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.poi.ss.usermodel.*;
-import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -38,6 +40,7 @@ public class ExamQuestionController {
 
     private final IExamQuestionService questionService;
     private final IExamSubjectService subjectService;
+    private final ISysExcelTemplateService excelTemplateService;
 
     @ApiOperation("分页查询题目列表")
     @GetMapping("/page")
@@ -52,7 +55,7 @@ public class ExamQuestionController {
                 .orderByDesc(ExamQuestion::getCreateTime);
 
         Page<ExamQuestion> page = questionService.page(new Page<>(query.getPageNum(), query.getPageSize()), wrapper);
-        return JsonResult.success(PageResult.of(page.getTotal(), page.getRecords(), query.getPageNum(), query.getPageSize()));
+        return JsonResult.success(PageResult.of(page));
     }
 
     @ApiOperation("根据ID查询题目")
@@ -61,11 +64,35 @@ public class ExamQuestionController {
         ExamQuestion question = questionService.getById(id);
         return JsonResult.success(question);
     }
+    
+    @ApiOperation("批量查询题目(用于收藏题目)")
+    @GetMapping("/list-by-ids")
+    public JsonResult<List<ExamQuestion>> listByIds(@RequestParam String ids) {
+        try {
+            List<Long> idList = Arrays.stream(ids.split(","))
+                    .map(String::trim)
+                    .filter(s -> !s.isEmpty())
+                    .map(Long::parseLong)
+                    .collect(java.util.stream.Collectors.toList());
+            
+            if (idList.isEmpty()) {
+                return JsonResult.success(new ArrayList<>());
+            }
+            
+            List<ExamQuestion> questions = questionService.listByIds(idList);
+            return JsonResult.success(questions);
+        } catch (Exception e) {
+            log.error("批量查询题目失败", e);
+            return JsonResult.error("查询失败: " + e.getMessage());
+        }
+    }
 
     @ApiOperation("新增题目")
     @PostMapping
     public JsonResult<ExamQuestion> add(@RequestBody @Validated ExamQuestion question) {
         if (question.getStatus() == null) question.setStatus(1);
+        // 自动设置题目来源
+        questionService.autoSetSourceType(question);
         questionService.save(question);
         return JsonResult.success(question);
     }
@@ -101,108 +128,67 @@ public class ExamQuestionController {
 
     @ApiOperation("下载导入模板")
     @GetMapping("/template")
-    public void downloadTemplate(HttpServletResponse response) {
-        try {
-            response.setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-            String fileName = URLEncoder.encode("题库导入模板.xlsx", "UTF-8");
-            response.setHeader("Content-Disposition", "attachment;filename=" + fileName);
-
-            Workbook workbook = new XSSFWorkbook();
-            Sheet sheet = workbook.createSheet("题目数据");
-
-            // 创建标题行
-            Row headerRow = sheet.createRow(0);
-            String[] headers = {"题目内容*", "题型*", "正确答案*", "选项(选择题)", "学科ID", "年级", "难度", "分值", "知识点", "答案解析"};
-            for (int i = 0; i < headers.length; i++) {
-                Cell cell = headerRow.createCell(i);
-                cell.setCellValue(headers[i]);
-                CellStyle style = workbook.createCellStyle();
-                Font font = workbook.createFont();
-                font.setBold(true);
-                style.setFont(font);
-                style.setFillForegroundColor(IndexedColors.GREY_25_PERCENT.getIndex());
-                style.setFillPattern(FillPatternType.SOLID_FOREGROUND);
-                cell.setCellStyle(style);
-                sheet.setColumnWidth(i, 25 * 256);
-            }
-
-            // 示例数据
-            Row exampleRow = sheet.createRow(1);
-            exampleRow.createCell(0).setCellValue("下列哪个是Java的基本数据类型？");
-            exampleRow.createCell(1).setCellValue("1");
-            exampleRow.createCell(2).setCellValue("A");
-            exampleRow.createCell(3).setCellValue("A.String B.int C.List D.Map");
-            exampleRow.createCell(4).setCellValue("1");
-            exampleRow.createCell(5).setCellValue("高一");
-            exampleRow.createCell(6).setCellValue("1");
-            exampleRow.createCell(7).setCellValue("5");
-            exampleRow.createCell(8).setCellValue("Java基础");
-            exampleRow.createCell(9).setCellValue("String是引用类型，int是基本数据类型");
-
-            // 说明行
-            Row noteRow = sheet.createRow(3);
-            Cell noteCell = noteRow.createCell(0);
-            noteCell.setCellValue("说明：带*为必填项；题型：1-单选，2-多选，3-判断，4-填空，5-简答；难度：1-简单，2-中等，3-困难；选项格式：A.xxx B.xxx C.xxx D.xxx（用空格分隔）");
-
-            workbook.write(response.getOutputStream());
-            workbook.close();
-        } catch (IOException e) {
-            log.error("下载模板失败", e);
-        }
+    public void downloadTemplate(HttpServletResponse response) throws IOException {
+        // 使用动态模板生成
+        excelTemplateService.generateTemplate(response, "question_import");
     }
 
     @ApiOperation("批量导入题目(Excel)")
     @PostMapping("/import")
     public JsonResult<Map<String, Object>> importQuestions(@RequestParam("file") MultipartFile file) {
         try {
-            Workbook workbook = WorkbookFactory.create(file.getInputStream());
-            Sheet sheet = workbook.getSheetAt(0);
-
+            // 使用EasyExcel读取
+            List<QuestionExcelDTO> excelDataList = EasyExcel.read(file.getInputStream())
+                    .head(QuestionExcelDTO.class)
+                    .sheet()
+                    .doReadSync();
+            
             List<ExamQuestion> successList = new ArrayList<>();
             List<String> errorList = new ArrayList<>();
-
-            for (int i = 1; i <= sheet.getLastRowNum(); i++) {
-                Row row = sheet.getRow(i);
-                if (row == null) continue;
-
-                String questionTitle = getCellValue(row.getCell(0));
-                if (!StringUtils.isNotBlank(questionTitle)) continue; // 跳过空行
-
-                String questionTypeStr = getCellValue(row.getCell(1));
-                String correctAnswer = getCellValue(row.getCell(2));
-                String options = getCellValue(row.getCell(3));
-                String subjectIdStr = getCellValue(row.getCell(4));
-                String grade = getCellValue(row.getCell(5));
-                String difficultyStr = getCellValue(row.getCell(6));
-                String scoreStr = getCellValue(row.getCell(7));
-                String knowledgePoint = getCellValue(row.getCell(8));
-                String analysis = getCellValue(row.getCell(9));
-
-                if (!StringUtils.isNotBlank(correctAnswer)) {
-                    errorList.add("第" + (i + 1) + "行：正确答案不能为空");
+            
+            for (int i = 0; i < excelDataList.size(); i++) {
+                QuestionExcelDTO dto = excelDataList.get(i);
+                int rowNum = i + 2; // Excel行号从2开始(第1行是表头)
+                
+                // 跳过空行
+                if (StringUtils.isBlank(dto.getQuestionTitle())) {
                     continue;
                 }
-
+                
+                // 验证必填项
+                if (dto.getQuestionType() == null) {
+                    errorList.add("第" + rowNum + "行：题型不能为空");
+                    continue;
+                }
+                if (StringUtils.isBlank(dto.getCorrectAnswer())) {
+                    errorList.add("第" + rowNum + "行：正确答案不能为空");
+                    continue;
+                }
+                
+                // 转换为Entity
                 ExamQuestion question = new ExamQuestion();
-                question.setQuestionTitle(questionTitle.trim());
-                question.setQuestionType(parseQuestionType(questionTypeStr));
-                question.setCorrectAnswer(correctAnswer.trim());
-                question.setOptions(parseOptions(options, question.getQuestionType()));
-                question.setSubjectId(parseSubjectId(subjectIdStr));
-                question.setGrade(StringUtils.isNotBlank(grade) ? grade.trim() : null);
-                question.setDifficulty(parseDifficulty(difficultyStr));
-                question.setScore(parseScore(scoreStr));
-                question.setKnowledgePoint(StringUtils.isNotBlank(knowledgePoint) ? knowledgePoint.trim() : null);
-                question.setAnalysis(StringUtils.isNotBlank(analysis) ? analysis.trim() : null);
+                question.setQuestionTitle(dto.getQuestionTitle().trim());
+                question.setQuestionType(dto.getQuestionType());
+                question.setCorrectAnswer(dto.getCorrectAnswer().trim());
+                
+                // 处理选项
+                if (StringUtils.isNotBlank(dto.getOptions()) && (dto.getQuestionType() == 1 || dto.getQuestionType() == 2)) {
+                    question.setOptions(parseOptions(dto.getOptions(), dto.getQuestionType()));
+                }
+                
+                question.setSubjectId(dto.getSubjectId());
+                question.setGrade(dto.getGrade());
+                question.setDifficulty(dto.getDifficulty() != null ? dto.getDifficulty() : 2);
+                question.setScore(dto.getScore() != null ? BigDecimal.valueOf(dto.getScore()) : BusinessConstants.DEFAULT_QUESTION_SCORE);
+                question.setTags(dto.getTags());
+                question.setAnalysis(dto.getAnalysis());
                 question.setStatus(1);
                 question.setUsageCount(0);
-
+                
                 questionService.save(question);
                 successList.add(question);
             }
-
-            workbook.close();
-
+            
             Map<String, Object> result = new HashMap<>();
             result.put("successCount", successList.size());
             result.put("errorCount", errorList.size());
@@ -214,28 +200,9 @@ public class ExamQuestionController {
         }
     }
 
-    private String getCellValue(Cell cell) {
-        if (cell == null) return null;
-        switch (cell.getCellType()) {
-            case STRING:
-                return cell.getStringCellValue();
-            case NUMERIC:
-                return String.valueOf((int) cell.getNumericCellValue());
-            default:
-                return null;
-        }
-    }
-
-    private Integer parseQuestionType(String typeStr) {
-        if (!StringUtils.isNotBlank(typeStr)) return 1;
-        try {
-            int t = Integer.parseInt(typeStr.trim());
-            return t >= 1 && t <= 5 ? t : 1;
-        } catch (NumberFormatException e) {
-            return 1;
-        }
-    }
-
+    /**
+     * 解析选项为JSON格式
+     */
     private String parseOptions(String options, Integer questionType) {
         if (!StringUtils.isNotBlank(options)) return null;
         // 选择题才需要选项，转换为JSON格式
@@ -262,33 +229,5 @@ public class ExamQuestionController {
             }
         }
         return options;
-    }
-
-    private Long parseSubjectId(String subjectIdStr) {
-        if (!StringUtils.isNotBlank(subjectIdStr)) return null;
-        try {
-            return Long.parseLong(subjectIdStr.trim());
-        } catch (NumberFormatException e) {
-            return null;
-        }
-    }
-
-    private Integer parseDifficulty(String difficultyStr) {
-        if (!StringUtils.isNotBlank(difficultyStr)) return 2;
-        try {
-            int d = Integer.parseInt(difficultyStr.trim());
-            return d >= 1 && d <= 3 ? d : 2;
-        } catch (NumberFormatException e) {
-            return 2;
-        }
-    }
-
-    private BigDecimal parseScore(String scoreStr) {
-        if (!StringUtils.isNotBlank(scoreStr)) return new BigDecimal("10");
-        try {
-            return new BigDecimal(scoreStr.trim());
-        } catch (NumberFormatException e) {
-            return new BigDecimal("10");
-        }
     }
 }

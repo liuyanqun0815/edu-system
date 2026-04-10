@@ -10,11 +10,25 @@ let isRefreshing = false
 // 重试队列
 let requests = []
 
-// 请求拦截器：自动附加 Authorization 和 X-User-Id
+// 请求拦截器:自动附加 Authorization 和 X-User-Id
 request.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token')
     if (token) {
+      // 检查token是否已过期(JWT payload中的exp字段)
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]))
+        const exp = payload.exp * 1000 // 转换为毫秒
+        if (Date.now() >= exp) {
+          // Token已过期,清除本地存储
+          localStorage.clear()
+          router.push('/login')
+          return Promise.reject(new Error('Token已过期'))
+        }
+      } catch (e) {
+        // 解析失败,清除token
+        localStorage.removeItem('token')
+      }
       config.headers['Authorization'] = 'Bearer ' + token
     }
     const userId = localStorage.getItem('userId')

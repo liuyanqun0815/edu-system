@@ -1,0 +1,32 @@
+server:
+  port: 8070
+
+spring:
+  application:
+    name: edu-admin
+  cloud:
+    nacos:
+      # Nacos配置中心
+      config:
+        server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
+        group: DEFAULT_GROUP
+        file-extension: yaml
+        namespace: ${NACOS_NAMESPACE:}  # 命名空间ID,留空使用public
+        username: ${NACOS_USERNAME:nacos}
+        password: ${NACOS_PASSWORD:nacos}
+        # 应用专属配置(数据源/Redis/XXL-JOB/业务配置)
+        extension-configs:
+          - data-id: edu-admin
+            group: DEFAULT_GROUP
+            refresh: true
+          - data-id: edu-business
+            group: DEFAULT_GROUP
+            refresh: true
+      # Nacos服务注册发现
+      discovery:
+        server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
+        namespace: ${NACOS_NAMESPACE:}
+        username: ${NACOS_USERNAME:nacos}
+        password: ${NACOS_PASSWORD:nacos}
+        group: DEFAULT_GROUP
+        enabled: true

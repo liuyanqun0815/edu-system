@@ -42,6 +42,9 @@
             <th>难度</th>
             <th>课时</th>
             <th>价格</th>
+            <th>浏览</th>
+            <th>学习</th>
+            <th>评分</th>
             <th>状态</th>
             <th>创建时间</th>
             <th>操作</th>
@@ -66,6 +69,15 @@
             </td>
             <td>{{ course.courseHours }}课时</td>
             <td>¥{{ course.price || 0 }}</td>
+            <td class="stats-cell">
+              <span class="stat-item">👁 {{ course.viewCount || 0 }}</span>
+            </td>
+            <td class="stats-cell">
+              <span class="stat-item">👥 {{ course.learnCount || 0 }}</span>
+            </td>
+            <td class="stats-cell">
+              <span class="rating">⭐ {{ course.rating || '暂无' }}</span>
+            </td>
             <td>
               <span :class="['status-tag', `status-${course.status}`]">
                 {{ statusMap[course.status] }}
@@ -185,6 +197,26 @@
             <div class="form-group">
               <label>课程详情</label>
               <textarea v-model="form.detail" rows="4" placeholder="请输入课程详情"></textarea>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>学习目标</label>
+                <textarea v-model="form.learningObjectives" rows="3" placeholder="请输入学习目标"></textarea>
+              </div>
+              <div class="form-group">
+                <label>课程标签</label>
+                <input v-model="form.tags" type="text" placeholder="多个标签用逗号分隔">
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>前置课程要求</label>
+                <input v-model="form.prerequisites" type="text" placeholder="请输入前置课程要求">
+              </div>
+              <div class="form-group">
+                <label>目标受众</label>
+                <input v-model="form.targetAudience" type="text" placeholder="请输入目标受众">
+              </div>
             </div>
             <div class="form-actions">
               <button type="button" class="btn btn-default" @click="closeModal">取消</button>
@@ -327,7 +359,12 @@ const form = reactive({
   difficulty: 1,
   courseHours: 0,
   price: 0,
-  status: 0
+  status: 0,
+  outlineId: null,
+  learningObjectives: '',
+  tags: '',
+  prerequisites: '',
+  targetAudience: ''
 })
 
 const chapterForm = reactive({
@@ -437,7 +474,12 @@ function handleEdit(course) {
     difficulty: course.difficulty || 1,
     courseHours: course.courseHours || 0,
     price: course.price || 0,
-    status: course.status
+    status: course.status,
+    outlineId: course.outlineId || null,
+    learningObjectives: course.learningObjectives || '',
+    tags: course.tags || '',
+    prerequisites: course.prerequisites || '',
+    targetAudience: course.targetAudience || ''
   })
   showModal.value = true
 }
@@ -461,7 +503,12 @@ function resetForm() {
     difficulty: 1,
     courseHours: 0,
     price: 0,
-    status: 0
+    status: 0,
+    outlineId: null,
+    learningObjectives: '',
+    tags: '',
+    prerequisites: '',
+    targetAudience: ''
   })
 }
 
@@ -789,6 +836,14 @@ onMounted(() => {
   border-radius: 4px;
   font-size: 12px;
 }
+
+.status-0 { background: #f0f0f0; color: #999; }
+.status-1 { background: #f6ffed; color: #52c41a; }
+.status-2 { background: #f0f0f0; color: #999; }
+
+.stats-cell { text-align: center; }
+.stat-item { font-size: 13px; color: #666; }
+.rating { font-size: 14px; color: #faad14; font-weight: 600; }
 
 .status-0 {
   background: #f0f0f0;

@@ -3,11 +3,12 @@ package com.education.system.entity;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
+import com.education.common.entity.BaseEntity;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 
-import java.io.Serializable;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.Date;
 
 /**
  * 系统用户实体类
@@ -44,16 +45,17 @@ import java.util.Date;
  * <ul>
  *   <li>SysRole - 用户角色（多对多，通过SysUserRole）</li>
  *   <li>SysMenu - 用户菜单（多对多，通过SysUserMenu）</li>
- *   <li>Grade - 所属年级</li>
  * </ul>
  * 
  * @see SysRole 角色实体
  * @see SysUserRole 用户角色关联
+ * @see BaseEntity 实体基类(dr/createTime/updateTime)
  * @author education-team
  */
 @Data
+@EqualsAndHashCode(callSuper = true)
 @TableName("sys_user")
-public class SysUser implements Serializable {
+public class SysUser extends BaseEntity {
 
     private static final long serialVersionUID = 1L;
 
@@ -136,12 +138,32 @@ public class SysUser implements Serializable {
     private Integer onlineTime;
 
     /**
-     * 创建时间
+     * 最后修改密码时间
      */
-    private Date createTime;
+    private LocalDateTime lastPasswordChangeTime;
 
     /**
-     * 更新时间
+     * 身份证号
      */
-    private Date updateTime;
+    private String idCard;
+
+    /**
+     * 出生日期
+     */
+    private LocalDate birthday;
+
+    /**
+     * 入学/入职日期
+     */
+    private LocalDate joinDate;
+
+    /**
+     * 登录失败次数
+     */
+    private Integer loginFailCount;
+
+    /**
+     * 锁定时间
+     */
+    private LocalDateTime lockTime;
 }

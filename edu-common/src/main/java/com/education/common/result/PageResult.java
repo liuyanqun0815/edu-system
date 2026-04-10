@@ -1,5 +1,6 @@
 package com.education.common.result;
 
+import com.baomidou.mybatisplus.core.metadata.IPage;
 import lombok.Data;
 
 import java.io.Serializable;
@@ -86,5 +87,12 @@ public class PageResult<T> implements Serializable {
 
     public static <T> PageResult<T> of(Long total, List<T> rows, Long pageNum, Long pageSize) {
         return new PageResult<>(total, rows, pageNum, pageSize);
+    }
+
+    /**
+     * 从MyBatis-Plus的Page对象构建PageResult
+     */
+    public static <T> PageResult<T> of(IPage<T> page) {
+        return new PageResult<>(page.getTotal(), page.getRecords(), page.getCurrent(), page.getSize());
     }
 }

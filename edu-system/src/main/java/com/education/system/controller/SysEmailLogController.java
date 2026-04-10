@@ -36,7 +36,7 @@ public class SysEmailLogController {
                 .orderByDesc(SysEmailLog::getSendTime);
         
         Page<SysEmailLog> page = emailLogMapper.selectPage(new Page<>(pageNum, pageSize), wrapper);
-        return JsonResult.success(PageResult.of(page.getTotal(), page.getRecords(), pageNum, pageSize));
+        return JsonResult.success(PageResult.of(page));
     }
 
     @ApiOperation("根据ID查询日志")

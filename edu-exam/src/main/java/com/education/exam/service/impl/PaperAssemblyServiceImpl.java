@@ -137,8 +137,10 @@ public class PaperAssemblyServiceImpl implements IPaperAssemblyService {
             wrapper.eq(ExamQuestion::getStatus, 1)
                     .eq(config.getDifficulty() != null, ExamQuestion::getDifficulty, config.getDifficulty())
                     .eq(config.getQuestionType() != null, ExamQuestion::getQuestionType, config.getQuestionType())
+                    .eq(config.getExamType() != null, ExamQuestion::getExamType, config.getExamType())
                     .eq(dto.getSubjectId() != null, ExamQuestion::getSubjectId, dto.getSubjectId())
-                    .eq(dto.getGrade() != null && !dto.getGrade().isEmpty(), ExamQuestion::getGrade, dto.getGrade());
+                    .eq(dto.getGrade() != null && !dto.getGrade().isEmpty(), ExamQuestion::getGrade, dto.getGrade())
+                    .eq(dto.getExamType() != null, ExamQuestion::getExamType, dto.getExamType());
             
             // 查询符合条件的题目
             List<ExamQuestion> candidates = questionService.list(wrapper);
@@ -194,6 +196,22 @@ public class PaperAssemblyServiceImpl implements IPaperAssemblyService {
         wrapper.eq(ExamQuestion::getStatus, 1)
                 .eq(subjectId != null, ExamQuestion::getSubjectId, subjectId)
                 .eq(grade != null && !grade.isEmpty(), ExamQuestion::getGrade, grade)
+                .eq(difficulty != null, ExamQuestion::getDifficulty, difficulty)
+                .eq(questionType != null, ExamQuestion::getQuestionType, questionType);
+        
+        return questionService.count(wrapper);
+    }
+    
+    /**
+     * 获取可用题目数量(支持考试类型)
+     */
+    public Integer getAvailableCountWithExamType(Long subjectId, String grade, Integer examType, 
+                                                  Integer difficulty, Integer questionType) {
+        LambdaQueryWrapper<ExamQuestion> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(ExamQuestion::getStatus, 1)
+                .eq(subjectId != null, ExamQuestion::getSubjectId, subjectId)
+                .eq(grade != null && !grade.isEmpty(), ExamQuestion::getGrade, grade)
+                .eq(examType != null, ExamQuestion::getExamType, examType)
                 .eq(difficulty != null, ExamQuestion::getDifficulty, difficulty)
                 .eq(questionType != null, ExamQuestion::getQuestionType, questionType);
         
@@ -257,7 +275,8 @@ public class PaperAssemblyServiceImpl implements IPaperAssemblyService {
      */
     private Integer findScoreForQuestion(List<PaperAssemblyDTO.DifficultyConfig> configs, ExamQuestion question) {
         if (CollectionUtils.isEmpty(configs)) {
-            return null;
+            // 如果没有配置，返回题目默认分值
+            return question.getScore() != null ? question.getScore().intValue() : 10;
         }
         for (PaperAssemblyDTO.DifficultyConfig config : configs) {
             if (config.getDifficulty() != null && config.getDifficulty().equals(question.getDifficulty())
@@ -265,7 +284,8 @@ public class PaperAssemblyServiceImpl implements IPaperAssemblyService {
                 return config.getScore();
             }
         }
-        return null;
+        // 未匹配到配置时，返回题目默认分值
+        return question.getScore() != null ? question.getScore().intValue() : 10;
     }
 
     @Override

@@ -3,6 +3,7 @@ package com.education.system.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.education.common.constants.RoleCodeConstants;
 import com.education.common.exception.BusinessException;
 import com.education.common.result.PageResult;
 import com.education.common.utils.SecurityUtils;
@@ -18,6 +19,8 @@ import com.education.system.service.ISysUserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -102,10 +105,11 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
                 .orderByDesc(SysUser::getCreateTime);
 
         Page<SysUser> page = page(new Page<>(query.getPageNum(), query.getPageSize()), wrapper);
-        return PageResult.of(page.getTotal(), page.getRecords(), query.getPageNum(), query.getPageSize());
+        return PageResult.of(page);
     }
 
     @Override
+    @Cacheable(value = "userCache", key = "#username")
     public SysUser getByUsername(String username) {
         LambdaQueryWrapper<SysUser> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(SysUser::getUsername, username);
@@ -113,6 +117,55 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
     }
 
     @Override
+    public String login(String username, String password, String captchaKey, String captchaCode) {
+        // 此方法已迁移到AuthController中实现
+        // 这里提供一个简化版本
+        SysUser user = getByUsername(username);
+        if (user == null) {
+            throw new BusinessException("用户名或密码错误");
+        }
+        if (!SecurityUtils.matchesPassword(password, user.getPassword())) {
+            throw new BusinessException("用户名或密码错误");
+        }
+        if (user.getStatus() != 1) {
+            throw new BusinessException("账号已被禁用");
+        }
+        // 生成Token（需要JwtUtils，这里简化处理）
+        return "token_" + user.getId();
+    }
+
+    @Override
+    @CacheEvict(value = "userCache", allEntries = true)
+    public void register(String username, String password, String email) {
+        // 检查用户名是否已存在
+        if (getByUsername(username) != null) {
+            throw new BusinessException("用户名已存在");
+        }
+        
+        SysUser user = new SysUser();
+        user.setUsername(username);
+        user.setPassword(SecurityUtils.encryptPassword(password));
+        user.setEmail(email);
+        user.setStatus(1);
+        save(user);
+    }
+
+    @Override
+    @CacheEvict(value = "userCache", key = "#userId")
+    public void resetPassword(Long userId, String newPassword) {
+        if (userId == null) {
+            throw new BusinessException("用户ID不能为空");
+        }
+        SysUser user = getById(userId);
+        if (user == null) {
+            throw new BusinessException("用户不存在");
+        }
+        user.setPassword(SecurityUtils.encryptPassword(newPassword));
+        updateById(user);
+    }
+
+    @Override
+    @CacheEvict(value = "userCache", allEntries = true)
     public boolean addUser(SysUser user) {
         // 检查用户名是否已存在
         if (getOne(new LambdaQueryWrapper<SysUser>().eq(SysUser::getUsername, user.getUsername())) != null) {
@@ -136,6 +189,7 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
     }
 
     @Override
+    @CacheEvict(value = "userCache", allEntries = true)
     public boolean updateUser(SysUser user) {
         if (user.getId() == null) {
             throw new BusinessException("用户ID不能为空");
@@ -164,6 +218,7 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
     }
 
     @Override
+    @CacheEvict(value = "userCache", allEntries = true)
     public boolean deleteUser(Long id) {
         return removeById(id);
     }
@@ -225,6 +280,7 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
     }
 
     @Override
+    @CacheEvict(value = "userCache", key = "#userId")
     public boolean changePassword(Long userId, String oldPassword, String newPassword) {
         if (userId == null) throw new BusinessException("用户ID不能为空");
         if (StringUtils.isBlank(newPassword)) throw new BusinessException("新密码不能为空");
@@ -243,10 +299,17 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
     }
 
     @Override
+    @Cacheable(value = "userCache", key = "#userId")
     public SysUser getCurrentUser() {
-        // 简化处理，返回ID为1的用户（admin）
-        // 实际应该从SecurityContext获取当前登录用户
-        return getById(1L);
+        Long userId = SecurityUtils.getCurrentUserId();
+        if (userId == null) {
+            throw new BusinessException("用户未登录");
+        }
+        SysUser user = getById(userId);
+        if (user == null) {
+            throw new BusinessException("用户不存在");
+        }
+        return user;
     }
 
     @Override
@@ -287,7 +350,7 @@ public class SysUserServiceImpl extends ServiceImpl<SysUserMapper, SysUser> impl
             // 老师：获取所有学生角色的用户
             // 查找学生角色
             LambdaQueryWrapper<SysRole> roleWrapper = new LambdaQueryWrapper<>();
-            roleWrapper.like(SysRole::getRoleCode, "student");
+            roleWrapper.like(SysRole::getRoleCode, RoleCodeConstants.STUDENT);
             List<SysRole> studentRoles = roleMapper.selectList(roleWrapper);
             
             if (!studentRoles.isEmpty()) {

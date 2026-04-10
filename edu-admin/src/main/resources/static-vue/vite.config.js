@@ -10,15 +10,15 @@ export default defineConfig({
     host: true,
     proxy: {
       '/auth': {
-        target: 'http://localhost:8080',
+        target: 'http://localhost:8070',
         changeOrigin: true
       },
       '/system': {
-        target: 'http://localhost:8080',
+        target: 'http://localhost:8070',
         changeOrigin: true
       },
       '/course': {
-        target: 'http://localhost:8080',
+        target: 'http://localhost:8070',
         changeOrigin: true,
         bypass: (path) => {
           // 只代理 API 请求，不代理前端路由
@@ -28,7 +28,7 @@ export default defineConfig({
         }
       },
       '/exam': {
-        target: 'http://localhost:8080',
+        target: 'http://localhost:8070',
         changeOrigin: true,
         bypass: (path) => {
           if (path === '/exam' || path === '/exam/') {
@@ -37,7 +37,7 @@ export default defineConfig({
         }
       },
       '/stats': {
-        target: 'http://localhost:8080',
+        target: 'http://localhost:8070',
         changeOrigin: true,
         bypass: (path) => {
           if (path === '/stats' || path === '/stats/') {

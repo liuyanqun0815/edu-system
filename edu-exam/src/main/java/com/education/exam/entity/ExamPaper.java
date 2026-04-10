@@ -3,9 +3,11 @@ package com.education.exam.entity;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
+import com.education.common.entity.BaseEntity;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 
-import java.util.Date;
+import java.time.LocalDateTime;
 
 /**
  * 试卷实体类
@@ -41,8 +43,9 @@ import java.util.Date;
  * @author education-team
  */
 @Data
+@EqualsAndHashCode(callSuper = true)
 @TableName("exam_paper")
-public class ExamPaper {
+public class ExamPaper extends BaseEntity {
     
     @TableId(type = IdType.AUTO)
     private Long id;
@@ -66,15 +69,26 @@ public class ExamPaper {
     private String description;
     
     private Integer status;
-    
+
     private Long createBy;
-    
+
     /**
-     * 逻辑删除：0-正常 1-删除
+     * 考试开始时间
      */
-    private Integer dr;
-    
-    private Date createTime;
-    
-    private Date updateTime;
+    private LocalDateTime examStartTime;
+
+    /**
+     * 考试结束时间
+     */
+    private LocalDateTime examEndTime;
+
+    /**
+     * 最大考试次数
+     */
+    private Integer maxAttempts;
+
+    /**
+     * 防作弊 0-关闭 1-开启
+     */
+    private Integer antiCheat;
 }

@@ -10,7 +10,7 @@ import com.education.exam.dto.PaperAssemblyDTO;
 import com.education.exam.dto.PaperAssemblyResultVO;
 import com.education.exam.dto.PaperExportVO;
 import com.education.exam.entity.ExamPaper;
-import com.education.exam.entity.Question;
+import com.education.exam.entity.ExamQuestion;
 import com.education.exam.service.IExamPaperService;
 import com.education.exam.service.IExamRecordService;
 import com.education.exam.service.IPaperAssemblyService;
@@ -41,6 +41,7 @@ public class ExamPaperController {
     private final IPaperExportService paperExportService;
     private final IExamRecordService recordService;
     private final PaperParseService paperParseService;
+    private final com.education.exam.service.IExamQuestionService questionService;
 
     @ApiOperation("分页查询试卷列表")
     @GetMapping("/page")
@@ -58,7 +59,7 @@ public class ExamPaperController {
                 .orderByDesc(ExamPaper::getCreateTime);
         
         Page<ExamPaper> page = paperService.page(new Page<>(pageNum, pageSize), wrapper);
-        return JsonResult.success(PageResult.of(page.getTotal(), page.getRecords(), pageNum, pageSize));
+        return JsonResult.success(PageResult.of(page));
     }
 
     @ApiOperation("根据ID查询试卷")
@@ -114,6 +115,31 @@ public class ExamPaperController {
             @RequestParam(required = false) Integer questionType) {
         Integer count = paperAssemblyService.getAvailableCount(subjectId, grade, difficulty, questionType);
         return JsonResult.success(count);
+    }
+    
+    @ApiOperation("获取候选题目池(用于手动选题)")
+    @GetMapping("/question-pool")
+    public JsonResult<List<ExamQuestion>> getQuestionPool(
+            @RequestParam(required = false) Long subjectId,
+            @RequestParam(required = false) String grade,
+            @RequestParam(required = false) Integer examType,
+            @RequestParam(required = false) Integer difficulty,
+            @RequestParam(required = false) Integer questionType,
+            @RequestParam(required = false) String keyword) {
+        
+        LambdaQueryWrapper<ExamQuestion> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(ExamQuestion::getStatus, 1)
+                .eq(subjectId != null, ExamQuestion::getSubjectId, subjectId)
+                .eq(grade != null && !grade.isEmpty(), ExamQuestion::getGrade, grade)
+                .eq(examType != null, ExamQuestion::getExamType, examType)
+                .eq(difficulty != null, ExamQuestion::getDifficulty, difficulty)
+                .eq(questionType != null, ExamQuestion::getQuestionType, questionType)
+                .like(keyword != null && !keyword.isEmpty(), ExamQuestion::getQuestionTitle, keyword)
+                .orderByDesc(ExamQuestion::getCreateTime)
+                .last("LIMIT 100"); // 最多返回100道
+        
+        List<ExamQuestion> questions = questionService.list(wrapper);
+        return JsonResult.success(questions);
     }
 
     @ApiOperation("手动选题组卷")
@@ -181,11 +207,11 @@ public class ExamPaperController {
 
     @ApiOperation("解析Word试卷")
     @PostMapping("/parse/word")
-    public JsonResult<List<Question>> parseWordPaper(
+    public JsonResult<List<ExamQuestion>> parseWordPaper(
             @RequestParam("file") org.springframework.web.multipart.MultipartFile file,
             @RequestParam(required = false) Long gradeId,
             @RequestParam(required = false) Long subjectId) {
-        RpcResult<List<Question>> result = paperParseService.parseWordPaper(file, gradeId, subjectId);
+        RpcResult<List<ExamQuestion>> result = paperParseService.parseWordPaper(file, gradeId, subjectId);
         if (result.isSuccess()) {
             return JsonResult.success(result.getData());
         } else {
@@ -195,11 +221,11 @@ public class ExamPaperController {
 
     @ApiOperation("解析文本试卷")
     @PostMapping("/parse/text")
-    public JsonResult<List<Question>> parseTextPaper(@RequestBody Map<String, Object> params) {
+    public JsonResult<List<ExamQuestion>> parseTextPaper(@RequestBody Map<String, Object> params) {
         String content = (String) params.get("content");
         Long gradeId = params.get("gradeId") != null ? Long.valueOf(params.get("gradeId").toString()) : null;
         Long subjectId = params.get("subjectId") != null ? Long.valueOf(params.get("subjectId").toString()) : null;
-        RpcResult<List<Question>> result = paperParseService.parseTextPaper(content, gradeId, subjectId);
+        RpcResult<List<ExamQuestion>> result = paperParseService.parseTextPaper(content, gradeId, subjectId);
         if (result.isSuccess()) {
             return JsonResult.success(result.getData());
         } else {
