@@ -1,0 +1,48 @@
+edu:
+  jwt:
+    secret: ${JWT_SECRET:edu-training-jwt-secret-key-2026-change-me}
+    expiration: 86400000
+    refresh-expiration: 604800000
+    token-header: Authorization
+    token-prefix: "Bearer "
+
+  rate-limit:
+    sms:
+      max-count: 5
+      window-seconds: 300
+    login-fail:
+      max-count: 3
+      window-seconds: 3600
+    api:
+      max-count: 60
+      window-seconds: 60
+    upload:
+      max-count: 10
+      window-seconds: 3600
+    repeat-submit:
+      max-count: 60
+      window-seconds: 60
+
+  repeat-submit:
+    expire-seconds: 3
+    header-name: X-Repeat-Submit-Token
+
+  file:
+    upload:
+      path: doc/uploads/
+      url-prefix: /uploads/
+      max-size: 10
+      allowed-image-types: jpg,jpeg,png,gif,webp
+
+  mail:
+    date-format: "yyyy-MM-dd HH:mm:ss"
+    template-path: "classpath:email-templates/"
+    timeout: 5000
+    connection-timeout: 5000
+
+  cors:
+    allowed-origins: "*"
+    allowed-methods: "GET,POST,PUT,DELETE,OPTIONS"
+    allowed-headers: "*"
+    allow-credentials: true
+    max-age: 3600

@@ -1,0 +1,128 @@
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: edu-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: 123456
+      MYSQL_DATABASE: edu_training
+      TZ: Asia/Shanghai
+    command:
+      - --default-authentication-plugin=mysql_native_password
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --max_connections=200
+      - --innodb_buffer_pool_size=256M
+      - --performance_schema=OFF
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./doc/sql/edu_training.sql:/docker-entrypoint-initdb.d/01-edu_training.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -p123456 --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    mem_limit: 768m
+    cpus: "0.80"
+
+  redis:
+    image: redis:6.2-alpine
+    container_name: edu-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    mem_limit: 192m
+    cpus: "0.20"
+
+  nacos:
+    image: nacos/nacos-server:v2.2.3
+    container_name: edu-nacos
+    restart: unless-stopped
+    environment:
+      MODE: standalone
+      NACOS_AUTH_ENABLE: "true"
+      NACOS_AUTH_IDENTITY_KEY: nacos
+      NACOS_AUTH_IDENTITY_VALUE: nacos
+      NACOS_AUTH_TOKEN: "0123456789abcdefghijklmnopqrstuvwxyz"
+      JVM_XMS: 128m
+      JVM_XMX: 256m
+      JVM_XMN: 128m
+    ports:
+      - "8848:8848"
+      - "9848:9848"
+      - "9849:9849"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8848/nacos/actuator/health >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+    mem_limit: 512m
+    cpus: "0.45"
+
+  nacos-init:
+    image: curlimages/curl:8.7.1
+    container_name: edu-nacos-init
+    restart: "no"
+    entrypoint: ["/bin/sh", "/scripts/init-nacos-config.sh"]
+    environment:
+      NACOS_ADDR: http://nacos:8848
+      NACOS_USERNAME: nacos
+      NACOS_PASSWORD: nacos
+      NACOS_GROUP: DEFAULT_GROUP
+      NACOS_NAMESPACE: ""
+    volumes:
+      - ./deploy/nacos/init-nacos-config.sh:/scripts/init-nacos-config.sh:ro
+      - ./deploy/nacos/edu-admin.yaml:/configs/edu-admin.yaml:ro
+      - ./deploy/nacos/edu-business.yaml:/configs/edu-business.yaml:ro
+    depends_on:
+      nacos:
+        condition: service_healthy
+    mem_limit: 64m
+    cpus: "0.10"
+
+  edu-admin:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: edu-training-admin:latest
+    container_name: edu-admin
+    restart: unless-stopped
+    environment:
+      TZ: Asia/Shanghai
+      NACOS_SERVER_ADDR: nacos:8848
+      NACOS_USERNAME: nacos
+      NACOS_PASSWORD: nacos
+      NACOS_NAMESPACE: ""
+      JWT_SECRET: edu-training-jwt-secret-key-2026-change-me
+      JAVA_OPTS: "-Xms128m -Xmx384m -XX:MaxMetaspaceSize=128m"
+    ports:
+      - "8070:8070"
+    volumes:
+      - ./uploads:/app/uploads
+      - ./static:/app/static
+      - ./static-vue:/app/static-vue
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      nacos:
+        condition: service_healthy
+      nacos-init:
+        condition: service_completed_successfully
+    mem_limit: 640m
+    cpus: "0.45"
+
+volumes:
+  mysql_data:
+  redis_data:
