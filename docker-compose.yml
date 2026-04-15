@@ -105,6 +105,14 @@ services:
       NACOS_NAMESPACE: ""
       JWT_SECRET: edu-training-jwt-secret-key-2026-change-me
       JAVA_OPTS: "-Xms128m -Xmx384m -XX:MaxMetaspaceSize=128m"
+      XXL_JOB_ADMIN_ADDRESSES: http://localhost:8088/xxl-job-admin
+      XXL_JOB_ACCESS_TOKEN: default_token
+      XXL_JOB_EXECUTOR_APPNAME: edu-training-executor
+      XXL_JOB_EXECUTOR_ADDRESS: ""
+      XXL_JOB_EXECUTOR_IP: ""
+      XXL_JOB_EXECUTOR_PORT: "8089"
+      XXL_JOB_EXECUTOR_LOGPATH: /data/applogs/xxl-job/jobhandler
+      XXL_JOB_EXECUTOR_LOGRETENTIONDAYS: "30"
     ports:
       - "8070:8070"
     volumes:
