@@ -53,7 +53,7 @@ services:
       NACOS_AUTH_ENABLE: "true"
       NACOS_AUTH_IDENTITY_KEY: nacos
       NACOS_AUTH_IDENTITY_VALUE: nacos
-      NACOS_AUTH_TOKEN: "0123456789abcdefghijklmnopqrstuvwxyz"
+      NACOS_AUTH_TOKEN: "5233aFfgsxf/oLGbdlqsQBVMInkfrXY/bYxdUFryiL3ssZ9qsRlrMoJfrInChU5O"
       JVM_XMS: 128m
       JVM_XMX: 256m
       JVM_XMN: 128m
